@@ -93,9 +93,14 @@ CREATE TABLE IF NOT EXISTS public.settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id TEXT,
   client_secret TEXT,
+  salesforce_enabled BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure existing settings table also has salesforce toggle column
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS salesforce_enabled BOOLEAN DEFAULT FALSE;
 
 -- Apply trigger to settings table
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

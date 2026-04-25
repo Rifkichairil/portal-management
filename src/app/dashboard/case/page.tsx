@@ -23,6 +23,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 
 // Mock data
 const caseStats = [
@@ -63,6 +65,7 @@ type CaseRow = {
 };
 
 export default function CaseDashboardPage() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("All");
@@ -74,6 +77,12 @@ export default function CaseDashboardPage() {
 
   // Modal State
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
+  const [newCaseSubject, setNewCaseSubject] = useState("");
+  const [newCaseDescription, setNewCaseDescription] = useState("");
+  const [isSubmittingCase, setIsSubmittingCase] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
 
   useEffect(() => {
     async function fetchCases() {
@@ -150,7 +159,46 @@ export default function CaseDashboardPage() {
       setIsLoading(false);
     }
     fetchCases();
-  }, [user, isManager, isSubmitter]);
+  }, [user, isManager, isSubmitter, refreshTrigger]);
+
+  const handleSubmitCase = async () => {
+    if (!newCaseSubject.trim()) {
+      setSubmitError("Subject is required.");
+      return;
+    }
+    setIsSubmittingCase(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: newCaseSubject.trim(), description: newCaseDescription.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsNewCaseModalOpen(false);
+        setNewCaseSubject("");
+        setNewCaseDescription("");
+        setSubmitError(null);
+        // Trigger re-fetch
+        setRefreshTrigger((t) => t + 1);
+        
+        toast.success(`Case ${data.case.caseNumber} created successfully!`);
+        router.push(`/dashboard/case/${data.case.caseNumber.toLowerCase()}`);
+      } else {
+        const json = await res.json();
+        const errMsg = json.error || "Failed to create case.";
+        setSubmitError(errMsg);
+        toast.error(errMsg);
+      }
+    } catch {
+      const errMsg = "Network error. Please try again.";
+      setSubmitError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setIsSubmittingCase(false);
+    }
+  };
 
   const dateFilteredCases = useMemo(() => {
     const now = new Date();
@@ -421,10 +469,18 @@ export default function CaseDashboardPage() {
             </div>
             
             <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+              {submitError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+                  {submitError}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-slate-700">Subject</label>
                 <Input 
                   placeholder="E.g. System crash during checkout" 
+                  value={newCaseSubject}
+                  onChange={(e) => setNewCaseSubject(e.target.value)}
                   className="w-full bg-slate-50 border-slate-200 focus-visible:ring-amber-500 rounded-lg"
                 />
               </div>
@@ -434,6 +490,8 @@ export default function CaseDashboardPage() {
                 <textarea 
                   rows={4}
                   placeholder="Please describe your issue in detail..." 
+                  value={newCaseDescription}
+                  onChange={(e) => setNewCaseDescription(e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
                 />
               </div>
@@ -456,15 +514,18 @@ export default function CaseDashboardPage() {
             <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 rounded-b-2xl border-t border-slate-100">
               <Button 
                 variant="outline" 
-                onClick={() => setIsNewCaseModalOpen(false)}
+                onClick={() => { setIsNewCaseModalOpen(false); setSubmitError(null); setNewCaseSubject(""); setNewCaseDescription(""); }}
                 className="bg-white border-slate-200 text-slate-700"
+                disabled={isSubmittingCase}
               >
                 Cancel
               </Button>
               <Button 
                 className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm font-semibold border-0"
+                onClick={handleSubmitCase}
+                disabled={isSubmittingCase}
               >
-                Submit Case
+                {isSubmittingCase ? "Submitting..." : "Submit Case"}
               </Button>
             </div>
           </div>
