@@ -336,7 +336,7 @@ export default function CaseDashboardPage() {
       {/* Main Table Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h2 className="text-xl font-bold text-slate-800">Active Cases</h2>
+          <h2 className="text-xl font-bold text-slate-800">All Cases</h2>
           
           <div className="flex items-center gap-3">
             {/* Search */}
