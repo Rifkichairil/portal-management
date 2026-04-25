@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
 import { 
   Search, 
   Filter, 
@@ -13,10 +15,13 @@ import {
   ArrowUpRight,
   ShieldAlert,
   X,
-  Upload
+  Upload,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 
 // Mock data
 const caseStats = [
@@ -28,168 +33,8 @@ const caseStats = [
   { title: "Closed", count: 112, trend: "+4.1%", isPositive: true, icon: AlertCircle },
 ];
 
-const mockCases = [
-  {
-    id: "CAS-1001",
-    client: { name: "Lena Harper", email: "lena.harper@example.com" },
-    subject: "Cannot access portal dashboard",
-    date: "May 21, 2026",
-    status: "In progress",
-    priority: "High",
-  },
-  {
-    id: "CAS-1002",
-    client: { name: "Sophie Kim", email: "sophie.kim@example.com" },
-    subject: "Billing issue for last month",
-    date: "May 11, 2026",
-    status: "Open",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1003",
-    client: { name: "Noah Bennett", email: "noah.b@example.com" },
-    subject: "Feature request: Export to PDF",
-    date: "May 19, 2026",
-    status: "Solved",
-    priority: "Low",
-  },
-  {
-    id: "CAS-1004",
-    client: { name: "Amelia Stone", email: "amelia.stone@example.com" },
-    subject: "2FA code not received",
-    date: "May 18, 2026",
-    status: "New",
-    priority: "High",
-  },
-  {
-    id: "CAS-1005",
-    client: { name: "Ethan Clarke", email: "ethan.clarke@example.com" },
-    subject: "Unable to update company profile",
-    date: "May 17, 2026",
-    status: "Open",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1006",
-    client: { name: "Mia Rodriguez", email: "mia.rodriguez@example.com" },
-    subject: "Error while uploading invoice attachment",
-    date: "May 16, 2026",
-    status: "Escalated",
-    priority: "High",
-  },
-  {
-    id: "CAS-1007",
-    client: { name: "Lucas Turner", email: "lucas.turner@example.com" },
-    subject: "Notification emails delayed",
-    date: "May 15, 2026",
-    status: "In progress",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1008",
-    client: { name: "Ava Nguyen", email: "ava.nguyen@example.com" },
-    subject: "Need role-based access for team",
-    date: "May 14, 2026",
-    status: "Open",
-    priority: "Low",
-  },
-  {
-    id: "CAS-1009",
-    client: { name: "Benjamin Lee", email: "ben.lee@example.com" },
-    subject: "Dashboard metrics not refreshing",
-    date: "May 13, 2026",
-    status: "In progress",
-    priority: "High",
-  },
-  {
-    id: "CAS-1010",
-    client: { name: "Chloe Adams", email: "chloe.adams@example.com" },
-    subject: "CSV export includes wrong delimiter",
-    date: "May 12, 2026",
-    status: "Solved",
-    priority: "Low",
-  },
-  {
-    id: "CAS-1011",
-    client: { name: "Henry Brooks", email: "henry.brooks@example.com" },
-    subject: "Cannot reset password",
-    date: "May 10, 2026",
-    status: "New",
-    priority: "High",
-  },
-  {
-    id: "CAS-1012",
-    client: { name: "Ella Foster", email: "ella.foster@example.com" },
-    subject: "Duplicate billing line items",
-    date: "May 9, 2026",
-    status: "Escalated",
-    priority: "High",
-  },
-  {
-    id: "CAS-1013",
-    client: { name: "Jackson Ward", email: "jackson.ward@example.com" },
-    subject: "Need audit log for user actions",
-    date: "May 8, 2026",
-    status: "Open",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1014",
-    client: { name: "Grace Hill", email: "grace.hill@example.com" },
-    subject: "Mobile layout overlaps sidebar",
-    date: "May 7, 2026",
-    status: "In progress",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1015",
-    client: { name: "Daniel Scott", email: "daniel.scott@example.com" },
-    subject: "Webhook endpoint timeout",
-    date: "May 6, 2026",
-    status: "Escalated",
-    priority: "High",
-  },
-  {
-    id: "CAS-1016",
-    client: { name: "Harper Evans", email: "harper.evans@example.com" },
-    subject: "Need invoice date format customization",
-    date: "May 5, 2026",
-    status: "Solved",
-    priority: "Low",
-  },
-  {
-    id: "CAS-1017",
-    client: { name: "Sebastian Perez", email: "sebastian.perez@example.com" },
-    subject: "Session expired too quickly",
-    date: "May 4, 2026",
-    status: "Open",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1018",
-    client: { name: "Zoe Collins", email: "zoe.collins@example.com" },
-    subject: "Search results missing recent cases",
-    date: "May 3, 2026",
-    status: "In progress",
-    priority: "Medium",
-  },
-  {
-    id: "CAS-1019",
-    client: { name: "Logan Morris", email: "logan.morris@example.com" },
-    subject: "Need API key regeneration option",
-    date: "May 2, 2026",
-    status: "New",
-    priority: "Low",
-  },
-  {
-    id: "CAS-1020",
-    client: { name: "Nora Price", email: "nora.price@example.com" },
-    subject: "Case detail page loads slowly",
-    date: "May 1, 2026",
-    status: "Closed",
-    priority: "Low",
-  },
-];
+// Note: mockCases removed, data fetched from Supabase
+const ITEMS_PER_PAGE = 10;
 
 const statusStyles: Record<string, string> = {
   "New": "bg-blue-100 text-blue-700",
@@ -202,13 +47,109 @@ const statusStyles: Record<string, string> = {
 
 type DateFilter = "All" | "This week" | "This month" | "This year";
 
+type CaseRow = {
+  id: string;
+  realId: string;
+  subject: string;
+  status: string;
+  date: string;
+  rawDate: Date;
+  client: {
+    name: string;
+    email: string;
+  };
+  contactSfId: string;
+};
+
 export default function CaseDashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const { user, isAdmin, isManager, isSubmitter } = useUser();
 
   // Modal State
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
+
+  useEffect(() => {
+    async function fetchCases() {
+      if (!user) return;
+      setIsLoading(true);
+
+      let query = supabase
+        .from('case')
+        .select(`
+          id,
+          caseNumber,
+          subject,
+          status,
+          created_at,
+          contact_sf_id,
+          contact:contact_sf_id (
+            fullName,
+            account:account_sf_id (
+              name,
+              email
+            )
+          )
+        `);
+
+      // Manager: see all cases from contacts under the same account
+      if (isManager && user.account_sf_id) {
+        const { data: accountContacts } = await supabase
+          .from('contact')
+          .select('contact_sf_id')
+          .eq('account_sf_id', user.account_sf_id);
+        const sfIds = (accountContacts || []).map((c: any) => c.contact_sf_id).filter(Boolean);
+        if (sfIds.length > 0) {
+          query = (query as any).in('contact_sf_id', sfIds);
+        } else {
+          setCases([]);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Submitter: only see their own cases (cannot see other submitters' cases)
+      if (isSubmitter && user.contact_sf_id) {
+        query = (query as any).eq('contact_sf_id', user.contact_sf_id);
+      } else if (isSubmitter && !user.contact_sf_id) {
+        setCases([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching cases:", error);
+      } else if (data) {
+        const mappedCases = data.map((item: any) => {
+          const contact = Array.isArray(item.contact) ? item.contact[0] : item.contact;
+          const account = contact && Array.isArray(contact.account) ? contact.account[0] : contact?.account;
+          return {
+            id: item.caseNumber,
+            realId: item.id,
+            subject: item.subject,
+            status: item.status,
+            date: new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            rawDate: new Date(item.created_at),
+            client: { 
+              name: contact?.fullName || "Unknown Client", 
+              email: account?.email || "N/A" 
+            },
+            contactSfId: item.contact_sf_id || "N/A"
+          };
+        });
+        setCases(mappedCases);
+      }
+      setIsLoading(false);
+    }
+    fetchCases();
+  }, [user, isManager, isSubmitter]);
 
   const dateFilteredCases = useMemo(() => {
     const now = new Date();
@@ -220,8 +161,8 @@ export default function CaseDashboardPage() {
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    return mockCases.filter((caseItem) => {
-      const caseDate = new Date(caseItem.date);
+    return cases.filter((caseItem) => {
+      const caseDate = caseItem.rawDate;
 
       if (Number.isNaN(caseDate.getTime())) {
         return false;
@@ -241,7 +182,7 @@ export default function CaseDashboardPage() {
 
       return true;
     });
-  }, [dateFilter]);
+  }, [dateFilter, cases]);
 
   const filteredCases = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -274,6 +215,13 @@ export default function CaseDashboardPage() {
     [dateFilteredCases]
   );
 
+  const totalPages = Math.ceil(filteredCases.length / ITEMS_PER_PAGE);
+  const effectivePage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const currentCases = useMemo(() => {
+    const startIdx = (effectivePage - 1) * ITEMS_PER_PAGE;
+    return filteredCases.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+  }, [effectivePage, filteredCases]);
+
   const statusFilterOptions = ["All", ...Object.keys(statusStyles)];
 
   return (
@@ -287,7 +235,10 @@ export default function CaseDashboardPage() {
             <select
               className="h-9 rounded-md border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+              onChange={(e) => {
+                setDateFilter(e.target.value as DateFilter);
+                setCurrentPage(1);
+              }}
               aria-label="Filter by date range"
             >
               <option value="All">All time</option>
@@ -296,12 +247,15 @@ export default function CaseDashboardPage() {
               <option value="This year">This year</option>
             </select>
           </div>
-          <Button 
-            className="bg-amber-200 hover:bg-amber-300 text-amber-900 font-semibold shadow-none border-0"
-            onClick={() => setIsNewCaseModalOpen(true)}
-          >
-            <Plus className="w-4 h-4 mr-2" /> New Case
-          </Button>
+          {/* Show New Case only for manager and submitter, NOT admin */}
+          {(isManager || isSubmitter) && (
+            <Button 
+              className="bg-amber-200 hover:bg-amber-300 text-amber-900 font-semibold shadow-none border-0"
+              onClick={() => setIsNewCaseModalOpen(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" /> New Case
+            </Button>
+          )}
         </div>
       </div>
 
@@ -342,11 +296,14 @@ export default function CaseDashboardPage() {
             {/* Search */}
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input 
+              <Input
                 placeholder="Search by subject or case number..."
                 className="pl-9 w-full sm:w-64 bg-slate-50 border-transparent focus-visible:bg-white transition-colors"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
             
@@ -356,7 +313,10 @@ export default function CaseDashboardPage() {
               <select
                 className="h-9 rounded-md border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 aria-label="Filter by status"
               >
                 {statusFilterOptions.map((status) => (
@@ -374,14 +334,22 @@ export default function CaseDashboardPage() {
             <thead>
               <tr className="text-slate-400 border-b border-slate-100">
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Client</th>
+                <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Contact SF ID</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Subject</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Date</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Status</th>
+                <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs text-right">Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredCases.length > 0 ? (
-                filteredCases.map((c) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
+                    Loading cases...
+                  </td>
+                </tr>
+              ) : currentCases.length > 0 ? (
+                currentCases.map((c) => (
                   <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
@@ -398,6 +366,9 @@ export default function CaseDashboardPage() {
                         </div>
                       </div>
                     </td>
+                    <td className="py-4 px-4 text-slate-700 font-medium">
+                      {c.contactSfId}
+                    </td>
                     <td className="py-4 px-4">
                       <div className="font-medium text-slate-700">{c.subject}</div>
                       <div className="text-xs text-slate-400 mt-0.5">{c.id}</div>
@@ -410,11 +381,18 @@ export default function CaseDashboardPage() {
                         {c.status}
                       </span>
                     </td>
+                    <td className="py-4 px-4 text-right">
+                      <Link href={`/dashboard/case/${c.id.toLowerCase()}`}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full">
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-10 px-4 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
                     No cases match your current filter.
                   </td>
                 </tr>
@@ -422,6 +400,71 @@ export default function CaseDashboardPage() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 0 && (
+          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500">
+            <div>
+              Showing <span className="font-medium text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to <span className="font-medium text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)}</span> of <span className="font-medium text-slate-800">{filteredCases.length}</span> results
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 disabled:opacity-50"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              <div className="flex items-center gap-1 mx-2">
+                {Array.from({ length: totalPages }).map((_, i) => {
+                  const pageNum = i + 1;
+                  if (
+                    totalPages <= 5 ||
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`h-8 w-8 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? "bg-blue-600 text-white"
+                            : "hover:bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  if (
+                    pageNum === currentPage - 2 ||
+                    pageNum === currentPage + 2
+                  ) {
+                    return <span key={pageNum} className="px-1 text-slate-400">...</span>;
+                  }
+
+                  return null;
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 disabled:opacity-50"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* New Case Modal */}
