@@ -3,14 +3,18 @@
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
+import { Pagination } from "@/components/ui/pagination";
 import { 
   Search, 
   Plus,
+  Users,
   Building2,
-  MapPin,
-  Globe,
   Mail,
   Phone,
+  Globe,
+  MapPin,
+  Eye,
+  X,
   ChevronLeft,
   ChevronRight,
   Filter
@@ -29,6 +33,8 @@ export default function AccountDashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
+
 
   useEffect(() => {
     async function fetchAccounts() {
@@ -222,9 +228,13 @@ export default function AccountDashboardPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 font-medium">
-                        View Details
-                      </Button>
+                      <button
+                        onClick={() => setSelectedAccount(acc)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -247,70 +257,88 @@ export default function AccountDashboardPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 0 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500 bg-slate-50/50 rounded-b-2xl">
-            <div>
-              Showing <span className="font-medium text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to <span className="font-medium text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, filteredAccounts.length)}</span> of <span className="font-medium text-slate-800">{filteredAccounts.length}</span> results
-            </div>
-            
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50" 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const pageNum = i + 1;
-                  // Show limited pages logic (e.g. 1 2 3 ... 10)
-                  if (
-                    totalPages <= 5 || 
-                    pageNum === 1 || 
-                    pageNum === totalPages || 
-                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
-                  ) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
-                          currentPage === pageNum 
-                            ? "bg-blue-600 text-white" 
-                            : "hover:bg-slate-200 text-slate-600"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  } else if (
-                    pageNum === currentPage - 2 || 
-                    pageNum === currentPage + 2
-                  ) {
-                    return <span key={pageNum} className="px-1 text-slate-400">...</span>;
-                  }
-                  return null;
-                })}
-              </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredAccounts.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
+      </div>
 
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50" 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+      {/* Account Quick-View Modal */}
+      {selectedAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-slate-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 leading-tight">{selectedAccount.name}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Account Quick View</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAccount(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ChevronRight className="w-4 h-4" />
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3">
+              <div className="grid grid-cols-1 gap-3 bg-slate-50 rounded-xl p-4 text-sm">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</div>
+                    <div className="text-slate-800 mt-0.5">{selectedAccount.email}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Phone</div>
+                    <div className="text-slate-800 mt-0.5">{selectedAccount.phone}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Globe className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Website</div>
+                    <div className="text-slate-800 mt-0.5">{selectedAccount.website}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Location</div>
+                    <div className="text-slate-800 mt-0.5">{selectedAccount.billingCity}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Contacts</div>
+                    <div className="text-slate-800 font-bold mt-0.5">{selectedAccount.contactCount}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 flex justify-end rounded-b-2xl border-t border-slate-100">
+              <Button variant="outline" onClick={() => setSelectedAccount(null)} className="bg-white">
+                Close
               </Button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
+

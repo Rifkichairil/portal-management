@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
+import { Pagination } from "@/components/ui/pagination";
 import { 
   Search, 
   Filter, 
@@ -16,7 +17,7 @@ import {
   ShieldAlert,
   X,
   Upload,
-  ChevronLeft,
+  Eye,
   ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -334,7 +335,6 @@ export default function CaseDashboardPage() {
             <thead>
               <tr className="text-slate-400 border-b border-slate-100">
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Client</th>
-                <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Contact SF ID</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Subject</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Date</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Status</th>
@@ -344,7 +344,7 @@ export default function CaseDashboardPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="py-10 px-4 text-center text-sm text-slate-500">
                     Loading cases...
                   </td>
                 </tr>
@@ -366,16 +366,11 @@ export default function CaseDashboardPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4 text-slate-700 font-medium">
-                      {c.contactSfId}
-                    </td>
                     <td className="py-4 px-4">
                       <div className="font-medium text-slate-700">{c.subject}</div>
                       <div className="text-xs text-slate-400 mt-0.5">{c.id}</div>
                     </td>
-                    <td className="py-4 px-4 text-slate-600">
-                      {c.date}
-                    </td>
+                    <td className="py-4 px-4 text-slate-600">{c.date}</td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[c.status] || "bg-slate-100 text-slate-700"}`}>
                         {c.status}
@@ -383,8 +378,9 @@ export default function CaseDashboardPage() {
                     </td>
                     <td className="py-4 px-4 text-right">
                       <Link href={`/dashboard/case/${c.id.toLowerCase()}`}>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full">
-                          <ChevronRight className="w-4 h-4" />
+                        <Button variant="ghost" size="sm" className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100">
+                          <Eye className="w-3.5 h-3.5" />
+                          View
                         </Button>
                       </Link>
                     </td>
@@ -392,7 +388,7 @@ export default function CaseDashboardPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="py-10 px-4 text-center text-sm text-slate-500">
                     No cases match your current filter.
                   </td>
                 </tr>
@@ -401,70 +397,13 @@ export default function CaseDashboardPage() {
           </table>
         </div>
 
-        {totalPages > 0 && (
-          <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500">
-            <div>
-              Showing <span className="font-medium text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to <span className="font-medium text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, filteredCases.length)}</span> of <span className="font-medium text-slate-800">{filteredCases.length}</span> results
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const pageNum = i + 1;
-                  if (
-                    totalPages <= 5 ||
-                    pageNum === 1 ||
-                    pageNum === totalPages ||
-                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
-                  ) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
-                          currentPage === pageNum
-                            ? "bg-blue-600 text-white"
-                            : "hover:bg-slate-200 text-slate-600"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  }
-
-                  if (
-                    pageNum === currentPage - 2 ||
-                    pageNum === currentPage + 2
-                  ) {
-                    return <span key={pageNum} className="px-1 text-slate-400">...</span>;
-                  }
-
-                  return null;
-                })}
-              </div>
-
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
+        <Pagination
+          currentPage={effectivePage}
+          totalPages={totalPages}
+          totalItems={filteredCases.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* New Case Modal */}

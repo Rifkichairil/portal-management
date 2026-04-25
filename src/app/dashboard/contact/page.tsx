@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
+import { Pagination } from "@/components/ui/pagination";
 import { 
   Search, 
   Plus,
@@ -11,8 +12,8 @@ import {
   Mail,
   Phone,
   Smartphone,
-  ChevronLeft,
-  ChevronRight,
+  Eye,
+  X,
   Filter
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,20 +24,25 @@ import { Input } from "@/components/ui/input";
 const ITEMS_PER_PAGE = 10;
 
 export default function ContactDashboardPage() {
-  const { isAdmin } = useUser();
+  const { isAdmin, isManager, user } = useUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [companyFilter, setCompanyFilter] = useState<string>("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [contacts, setContacts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedContact, setSelectedContact] = useState<any | null>(null);
+
 
   useEffect(() => {
     async function fetchContacts() {
+      if (!user && isManager) return; // wait for user before fetching (manager needs account_sf_id)
       setIsLoading(true);
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('contact')
         .select(`
           id,
+          account_sf_id,
           firstName,
           lastName,
           fullName,
@@ -47,14 +53,20 @@ export default function ContactDashboardPage() {
           account:account_sf_id (name),
           case (count)
         `);
+
+      // Manager: only see contacts within their account
+      if (isManager && user?.account_sf_id) {
+        query = (query as any).eq('account_sf_id', user.account_sf_id);
+      }
+
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching contacts:", error);
       } else if (data) {
-        const mappedContacts = data.map(item => {
-          const user = item.users && Array.isArray(item.users) ? item.users[0] : item.users;
+        const mappedContacts = data.map((item: any) => {
+          const userContact = item.users && Array.isArray(item.users) ? item.users[0] : item.users;
           const account = item.account && Array.isArray(item.account) ? item.account[0] : item.account;
-          
           return {
             id: item.id,
             fullName: item.fullName || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unknown',
@@ -62,7 +74,7 @@ export default function ContactDashboardPage() {
             accountName: account?.name || 'Unknown Company',
             phone: item.phone || 'N/A',
             mobile: item.mobile || 'N/A',
-            email: user?.email || 'N/A',
+            email: userContact?.email || 'N/A',
             caseCount: item.case ? item.case[0]?.count || 0 : 0
           };
         });
@@ -71,7 +83,7 @@ export default function ContactDashboardPage() {
       setIsLoading(false);
     }
     fetchContacts();
-  }, []);
+  }, [user, isManager]);
 
   // Get unique companies for filter
   const uniqueCompanies = ["All", ...Array.from(new Set(contacts.map(c => c.accountName)))];
@@ -231,9 +243,13 @@ export default function ContactDashboardPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <Button variant="ghost" size="sm" className="text-purple-600 hover:text-purple-800 hover:bg-purple-50 font-medium">
-                        View Profile
-                      </Button>
+                      <button
+                        onClick={() => setSelectedContact(contact)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        View
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -256,70 +272,85 @@ export default function ContactDashboardPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        {totalPages > 0 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500 bg-slate-50/50 rounded-b-2xl">
-            <div>
-              Showing <span className="font-medium text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to <span className="font-medium text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, filteredContacts.length)}</span> of <span className="font-medium text-slate-800">{filteredContacts.length}</span> results
-            </div>
-            
-            <div className="flex items-center gap-1">
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50" 
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              
-              <div className="flex items-center gap-1 mx-2">
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const pageNum = i + 1;
-                  // Show limited pages logic (e.g. 1 2 3 ... 10)
-                  if (
-                    totalPages <= 5 || 
-                    pageNum === 1 || 
-                    pageNum === totalPages || 
-                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
-                  ) {
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`h-8 w-8 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
-                          currentPage === pageNum 
-                            ? "bg-purple-600 text-white" 
-                            : "hover:bg-slate-200 text-slate-600"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  } else if (
-                    pageNum === currentPage - 2 || 
-                    pageNum === currentPage + 2
-                  ) {
-                    return <span key={pageNum} className="px-1 text-slate-400">...</span>;
-                  }
-                  return null;
-                })}
-              </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredContacts.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
+      </div>
 
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="h-8 w-8 disabled:opacity-50" 
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
+      {/* Contact Quick-View Modal */}
+      {selectedContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedContact.fullName}`} alt={selectedContact.fullName} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">{selectedContact.fullName}</h3>
+                  <p className="text-xs text-slate-400">{selectedContact.title}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedContact(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <ChevronRight className="w-4 h-4" />
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 gap-3 bg-slate-50 rounded-xl p-4 text-sm">
+                <div className="flex items-center gap-3">
+                  <Building2 className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Company</div>
+                    <div className="text-slate-800 mt-0.5">{selectedContact.accountName}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Email</div>
+                    <div className="text-slate-800 mt-0.5">{selectedContact.email}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Phone</div>
+                    <div className="text-slate-800 mt-0.5">{selectedContact.phone}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Smartphone className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Mobile</div>
+                    <div className="text-slate-800 mt-0.5">{selectedContact.mobile}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total Cases</div>
+                    <div className="text-slate-800 font-bold mt-0.5">{selectedContact.caseCount}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 flex justify-end rounded-b-2xl border-t border-slate-100">
+              <Button variant="outline" onClick={() => setSelectedContact(null)} className="bg-white">
+                Close
               </Button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

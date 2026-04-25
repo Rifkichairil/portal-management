@@ -20,16 +20,18 @@ function SidebarContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAdmin, isManager, isSubmitter } = useUser();
+  const { user, isAdmin, isManager, isSubmitter, isLoading } = useUser();
 
-  // Role-based nav items
+  // Role-based nav items — only filter once user is loaded
   const allNavItems = [
     { title: "Case", href: "/dashboard/case", icon: Briefcase, roles: ["admin", "manager", "submitercase"] },
     { title: "Account", href: "/dashboard/account", icon: Building2, roles: ["admin"] },
     { title: "Contact", href: "/dashboard/contact", icon: Users, roles: ["admin", "manager"] },
   ];
 
-  const navItems = allNavItems.filter(item => item.roles.includes(user?.role || ""));
+  const navItems = isLoading
+    ? [] // show nothing while loading, avoids flash
+    : allNavItems.filter(item => item.roles.includes(user?.role || ""));
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
