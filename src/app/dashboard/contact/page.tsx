@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import NewContactModal from "@/components/new-contact-modal";
 
 // Mock data generation
 // mockContacts removed, using Supabase fetch
@@ -31,6 +32,7 @@ export default function ContactDashboardPage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
+  const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
 
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function ContactDashboardPage() {
         .from('contact')
         .select(`
           id,
-          account_sf_id,
+          account_id,
           firstName,
           lastName,
           fullName,
@@ -50,13 +52,13 @@ export default function ContactDashboardPage() {
           phone,
           mobile,
           users:user_id (email),
-          account:account_sf_id (name),
+          account:account_id (name, account_sf_id),
           case (count)
         `);
 
       // Manager: only see contacts within their account
       if (isManager && user?.account_sf_id) {
-        query = (query as any).eq('account_sf_id', user.account_sf_id);
+        query = (query as any).eq('account.account_sf_id', user.account_sf_id);
       }
 
       const { data, error } = await query;
@@ -83,7 +85,7 @@ export default function ContactDashboardPage() {
       setIsLoading(false);
     }
     fetchContacts();
-  }, [user, isManager]);
+  }, [user, isManager, isNewContactModalOpen]);
 
   // Get unique companies for filter
   const uniqueCompanies = ["All", ...Array.from(new Set(contacts.map(c => c.accountName)))];
@@ -129,7 +131,10 @@ export default function ContactDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0">
+            <Button 
+              className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
+              onClick={() => setIsNewContactModalOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" /> New Contact
             </Button>
           )}
@@ -280,6 +285,15 @@ export default function ContactDashboardPage() {
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {/* New Contact Modal */}
+      <NewContactModal
+        isOpen={isNewContactModalOpen}
+        onClose={() => setIsNewContactModalOpen(false)}
+        onSuccess={() => {
+          setIsNewContactModalOpen(false);
+        }}
+      />
 
       {/* Contact Quick-View Modal */}
       {selectedContact && (

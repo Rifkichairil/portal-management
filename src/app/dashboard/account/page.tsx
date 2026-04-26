@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import NewAccountModal from "@/components/new-account-modal";
 
 // Mock data generation
 // mockAccounts removed, using Supabase fetch
@@ -34,6 +35,7 @@ export default function AccountDashboardPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
+  const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
 
 
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function AccountDashboardPage() {
       setIsLoading(false);
     }
     fetchAccounts();
-  }, []);
+  }, [isNewAccountModalOpen]);
 
   // Get unique cities for filter
   const uniqueCities = ["All", ...Array.from(new Set(accounts.map(a => a.billingCity)))];
@@ -116,7 +118,10 @@ export default function AccountDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0">
+            <Button 
+              className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
+              onClick={() => setIsNewAccountModalOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-2" /> New Account
             </Button>
           )}
@@ -265,6 +270,15 @@ export default function AccountDashboardPage() {
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {/* New Account Modal */}
+      <NewAccountModal
+        isOpen={isNewAccountModalOpen}
+        onClose={() => setIsNewAccountModalOpen(false)}
+        onSuccess={() => {
+          setIsNewAccountModalOpen(false);
+        }}
+      />
 
       {/* Account Quick-View Modal */}
       {selectedAccount && (

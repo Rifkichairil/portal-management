@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.contact (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   contact_sf_id TEXT UNIQUE,
-  account_sf_id TEXT REFERENCES public.account(account_sf_id) ON DELETE CASCADE,
+  account_id UUID REFERENCES public.account(id) ON DELETE CASCADE,
   "firstName" TEXT,
   "lastName" TEXT,
   "fullName" TEXT,
@@ -101,6 +101,32 @@ CREATE TABLE IF NOT EXISTS public.settings (
 -- Ensure existing settings table also has salesforce toggle column
 ALTER TABLE public.settings
 ADD COLUMN IF NOT EXISTS salesforce_enabled BOOLEAN DEFAULT FALSE;
+
+-- Migration: Change contact table foreign key from account_sf_id to account_id
+-- Drop old foreign key constraint if exists
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'contact_account_sf_id_fkey'
+    ) THEN
+        ALTER TABLE public.contact DROP CONSTRAINT contact_account_sf_id_fkey;
+    END IF;
+END $$;
+
+-- Add new column for account_id if it doesn't exist
+ALTER TABLE public.contact
+ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.account(id) ON DELETE CASCADE;
+
+-- Migrate data from account_sf_id to account_id for existing records
+UPDATE public.contact c
+SET account_id = a.id
+FROM public.account a
+WHERE c.account_sf_id = a.account_sf_id
+AND c.account_id IS NULL;
+
+-- Drop old account_sf_id column after migration (optional - keep for reference)
+-- ALTER TABLE public.contact DROP COLUMN IF EXISTS account_sf_id;
 
 -- Apply trigger to settings table
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -17,6 +17,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const [settingsExist, setSettingsExist] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAdmin) {
@@ -35,6 +36,9 @@ export default function SettingsPage() {
             setClientId(json.settings.client_id || "");
             setClientSecret(json.settings.client_secret || "");
             setSalesforceEnabled(json.settings.salesforce_enabled ?? false);
+            setSettingsExist(true);
+          } else {
+            setSettingsExist(false);
           }
         }
       } catch {
@@ -71,11 +75,13 @@ export default function SettingsPage() {
       });
       if (res.ok) {
         setSaveStatus("success");
+        setSettingsExist(true);
         toast.success("Settings saved successfully!");
         setTimeout(() => setSaveStatus("idle"), 3000);
       } else {
+        const errorData = await res.json();
         setSaveStatus("error");
-        toast.error("Failed to save settings.");
+        toast.error(errorData.error || "Failed to save settings.");
       }
     } catch {
       setSaveStatus("error");
@@ -87,11 +93,17 @@ export default function SettingsPage() {
 
   const handleToggleSalesforce = () => {
     if (!salesforceEnabled) {
+      // Check if settings exist in database and credentials are filled
       const hasClientId = clientId.trim().length > 0;
       const hasClientSecret = clientSecret.trim().length > 0;
 
       if (!hasClientId || !hasClientSecret) {
         toast.error("Fill API credentials before enabling Salesforce.");
+        return;
+      }
+
+      if (!settingsExist) {
+        toast.error("Please save your credentials first before enabling Salesforce.");
         return;
       }
     }
