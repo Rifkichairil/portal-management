@@ -41,9 +41,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     async function fetchCaseDetail() {
       setIsLoading(true);
-      const caseNumber = caseId.toUpperCase();
-      
-      const { data, error } = await supabase
+      const rawIdentifier = caseId;
+      const normalizedCaseNumber = caseId.toUpperCase();
+
+      // First try to query by case_sf_id (case-sensitive), fallback to caseNumber
+      let { data, error } = await supabase
         .from('case')
         .select(`
           id,
@@ -51,17 +53,43 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           subject,
           status,
           created_at,
+          case_sf_id,
           contact_sf_id,
           contact:contact_sf_id (
             fullName,
             phone,
-            account:account_sf_id (name, account_sf_id),
+            account:account_id (name, account_sf_id),
             users:user_id (email)
           )
         `)
-        .eq('caseNumber', caseNumber)
-        .single();
-        
+        .eq('case_sf_id', rawIdentifier)
+        .maybeSingle();
+
+      // If not found by case_sf_id, try by caseNumber
+      if (!data) {
+        const result = await supabase
+          .from('case')
+          .select(`
+            id,
+            caseNumber,
+            subject,
+            status,
+            created_at,
+            case_sf_id,
+            contact_sf_id,
+            contact:contact_sf_id (
+              fullName,
+              phone,
+              account:account_id (name, account_sf_id),
+              users:user_id (email)
+            )
+          `)
+          .eq('caseNumber', normalizedCaseNumber)
+          .maybeSingle();
+        data = result.data;
+        error = result.error;
+      }
+
       if (data) {
         const contact = Array.isArray(data.contact) ? data.contact[0] : data.contact;
         const account = contact && Array.isArray(contact.account) ? contact.account[0] : contact?.account;

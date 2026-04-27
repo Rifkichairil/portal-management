@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS public.settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id TEXT,
   client_secret TEXT,
+  base_url TEXT,
   salesforce_enabled BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -101,6 +102,10 @@ CREATE TABLE IF NOT EXISTS public.settings (
 -- Ensure existing settings table also has salesforce toggle column
 ALTER TABLE public.settings
 ADD COLUMN IF NOT EXISTS salesforce_enabled BOOLEAN DEFAULT FALSE;
+
+-- Add base_url column if it doesn't exist
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS base_url TEXT;
 
 -- Migration: Change contact table foreign key from account_sf_id to account_id
 -- Drop old foreign key constraint if exists
@@ -130,3 +135,17 @@ AND c.account_id IS NULL;
 
 -- Apply trigger to settings table
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- 6. Table: error_log
+CREATE TABLE IF NOT EXISTS public.error_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  error_type TEXT NOT NULL,
+  error_message TEXT NOT NULL,
+  error_details TEXT,
+  case_id UUID REFERENCES public.case(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Apply trigger to error_log table
+CREATE TRIGGER update_error_log_updated_at BEFORE UPDATE ON public.error_log FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

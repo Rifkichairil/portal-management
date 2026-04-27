@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  Briefcase, 
-  ChevronRight, 
+import {
+  Briefcase,
+  ChevronRight,
   ChevronLeft,
   Settings,
   FolderOpen,
   LogOut,
   Building2,
   Users,
-  Bell
+  Bell,
+  AlertCircle
 } from "lucide-react";
 import { UserProvider, useUser } from "@/lib/user-context";
 import { Toaster } from "react-hot-toast";
@@ -38,6 +39,7 @@ function SidebarContent() {
     { title: "Case", href: "/dashboard/case", icon: Briefcase, roles: ["admin", "manager", "submitercase"] },
     { title: "Account", href: "/dashboard/account", icon: Building2, roles: ["admin"] },
     { title: "Contact", href: "/dashboard/contact", icon: Users, roles: ["admin", "manager"] },
+    { title: "Error Log", href: "/dashboard/error-log", icon: AlertCircle, roles: ["admin"] },
   ];
 
   const navItems = isLoading

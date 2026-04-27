@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 // Route access rules per role
 const ROLE_ROUTES: Record<string, string[]> = {
-  admin: ['/dashboard/case', '/dashboard/account', '/dashboard/contact', '/dashboard/settings'],
+  admin: ['/dashboard/case', '/dashboard/account', '/dashboard/contact', '/dashboard/settings', '/dashboard/error-log'],
   manager: ['/dashboard/case', '/dashboard/contact'],
   submitercase: ['/dashboard/case'],
 };

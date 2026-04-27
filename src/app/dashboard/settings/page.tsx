@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Key, Hash, Cloud, CloudOff, Loader2 } from "lucide-react";
+import { Save, Key, Hash, Cloud, CloudOff, Loader2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/lib/user-context";
@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [salesforceEnabled, setSalesforceEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -35,6 +36,7 @@ export default function SettingsPage() {
           if (json.settings) {
             setClientId(json.settings.client_id || "");
             setClientSecret(json.settings.client_secret || "");
+            setBaseUrl(json.settings.base_url || "");
             setSalesforceEnabled(json.settings.salesforce_enabled ?? false);
             setSettingsExist(true);
           } else {
@@ -70,6 +72,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           client_id: clientId,
           client_secret: clientSecret,
+          base_url: baseUrl,
           salesforce_enabled: salesforceEnabled,
         }),
       });
@@ -96,9 +99,10 @@ export default function SettingsPage() {
       // Check if settings exist in database and credentials are filled
       const hasClientId = clientId.trim().length > 0;
       const hasClientSecret = clientSecret.trim().length > 0;
+      const hasBaseUrl = baseUrl.trim().length > 0;
 
-      if (!hasClientId || !hasClientSecret) {
-        toast.error("Fill API credentials before enabling Salesforce.");
+      if (!hasClientId || !hasClientSecret || !hasBaseUrl) {
+        toast.error("Fill API credentials and base URL before enabling Salesforce.");
         return;
       }
 
@@ -233,6 +237,20 @@ export default function SettingsPage() {
                   className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
                 />
                 <p className="text-xs text-slate-500">Keep this secret safe. It is used to authenticate your application.</p>
+              </div>
+
+              <div className="space-y-2 max-w-xl">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-slate-400" />
+                  Base URL
+                </label>
+                <Input
+                  placeholder="https://saasten--ranggersbx.sandbox.my.salesforce.com"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+                />
+                <p className="text-xs text-slate-500">Salesforce instance URL (e.g., https://saasten--ranggersbx.sandbox.my.salesforce.com)</p>
               </div>
             </div>
 

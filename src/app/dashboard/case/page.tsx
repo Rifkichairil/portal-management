@@ -79,6 +79,7 @@ export default function CaseDashboardPage() {
   const [isNewCaseModalOpen, setIsNewCaseModalOpen] = useState(false);
   const [newCaseSubject, setNewCaseSubject] = useState("");
   const [newCaseDescription, setNewCaseDescription] = useState("");
+  const [newCaseImages, setNewCaseImages] = useState<Array<{ fileName: string; base64Data: string }>>([]);
   const [isSubmittingCase, setIsSubmittingCase] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -100,7 +101,7 @@ export default function CaseDashboardPage() {
           contact_sf_id,
           contact:contact_sf_id (
             fullName,
-            account:account_sf_id (
+            account:account_id (
               name,
               email
             )
@@ -172,19 +173,26 @@ export default function CaseDashboardPage() {
       const res = await fetch("/api/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: newCaseSubject.trim(), description: newCaseDescription.trim() }),
+        body: JSON.stringify({
+          subject: newCaseSubject.trim(),
+          description: newCaseDescription.trim(),
+          images: newCaseImages,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
         setIsNewCaseModalOpen(false);
         setNewCaseSubject("");
         setNewCaseDescription("");
+        setNewCaseImages([]);
         setSubmitError(null);
         // Trigger re-fetch
         setRefreshTrigger((t) => t + 1);
-        
+
         toast.success(`Case ${data.case.caseNumber} created successfully!`);
-        router.push(`/dashboard/case/${data.case.caseNumber.toLowerCase()}`);
+        // Redirect using case_sf_id if available, otherwise use caseNumber
+        const redirectId = data.case.case_sf_id || data.case.caseNumber;
+        router.push(`/dashboard/case/${redirectId}`);
       } else {
         const json = await res.json();
         const errMsg = json.error || "Failed to create case.";
@@ -198,6 +206,42 @@ export default function CaseDashboardPage() {
     } finally {
       setIsSubmittingCase(false);
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newImages: Array<{ fileName: string; base64Data: string }> = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const base64 = await fileToBase64(file);
+      newImages.push({
+        fileName: file.name,
+        base64Data: base64,
+      });
+    }
+
+    setNewCaseImages([...newCaseImages, ...newImages]);
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+        const base64Data = base64.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setNewCaseImages(newCaseImages.filter((_, i) => i !== index));
   };
 
   const dateFilteredCases = useMemo(() => {
@@ -502,19 +546,47 @@ export default function CaseDashboardPage() {
                   <Upload className="w-8 h-8 text-slate-400 mb-3 group-hover:text-amber-500 transition-colors" />
                   <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
                   <p className="text-xs text-slate-500 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
-                  <input 
-                    type="file" 
-                    multiple 
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileSelect}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                 </div>
+
+                {newCaseImages.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-medium text-slate-600">Selected files ({newCaseImages.length})</p>
+                    {newCaseImages.map((image, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-slate-200 rounded flex items-center justify-center">
+                            <Upload className="w-4 h-4 text-slate-500" />
+                          </div>
+                          <span className="text-xs text-slate-700 truncate max-w-[200px]">{image.fileName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 rounded-b-2xl border-t border-slate-100">
-              <Button 
-                variant="outline" 
-                onClick={() => { setIsNewCaseModalOpen(false); setSubmitError(null); setNewCaseSubject(""); setNewCaseDescription(""); }}
+              <Button
+                variant="outline"
+                onClick={() => { setIsNewCaseModalOpen(false); setSubmitError(null); setNewCaseSubject(""); setNewCaseDescription(""); setNewCaseImages([]); }}
                 className="bg-white border-slate-200 text-slate-700"
                 disabled={isSubmittingCase}
               >
