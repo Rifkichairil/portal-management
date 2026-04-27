@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [baseUrl, setBaseUrl] = useState("https://saasten--ranggersbx.sandbox.my.salesforce.com/services/oauth2/token");
   const [salesforceEnabled, setSalesforceEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -36,7 +36,7 @@ export default function SettingsPage() {
           if (json.settings) {
             setClientId(json.settings.client_id || "");
             setClientSecret(json.settings.client_secret || "");
-            setBaseUrl(json.settings.base_url || "");
+            setBaseUrl(json.settings.base_url || "https://saasten--ranggersbx.sandbox.my.salesforce.com/services/oauth2/token");
             setSalesforceEnabled(json.settings.salesforce_enabled ?? false);
             setSettingsExist(true);
           } else {

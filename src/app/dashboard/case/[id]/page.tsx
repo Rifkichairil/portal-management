@@ -8,7 +8,6 @@ import {
   Info,
   FileText,
   PlusCircle,
-  ChevronUp, 
   Star,
   User,
   Activity,
@@ -30,13 +29,95 @@ import Link from "next/link";
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
   const caseId = unwrappedParams.id;
-  const [activeTab, setActiveTab] = useState("Activity");
+  const [activeTab, setActiveTab] = useState("Overview");
   const [caseData, setCaseData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
+  const [activityData, setActivityData] = useState<any[]>([]);
+  const [commentsData, setCommentsData] = useState<any[]>([]);
+  const [attachmentsData, setAttachmentsData] = useState<any[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
 
   const { user, isAdmin, isManager, isSubmitter } = useUser();
   const router = useRouter();
+
+  // Helper function to format field name
+  function formatFieldName(fieldName: string): string {
+    if (!fieldName) return 'N/A';
+    
+    // Remove __c suffix
+    let formatted = fieldName.replace(/__c$/, '');
+    
+    // Replace underscores with spaces and capitalize first letter of each word
+    const words = formatted.split('_');
+    formatted = words.map(word => {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+    
+    return formatted;
+  }
+
+  // Fetch Activity data from Salesforce via API route
+  async function fetchActivityData(caseSfId: string) {
+    setIsLoadingActivity(true);
+    try {
+      const res = await fetch(`/api/salesforce/case/activity?id=${caseSfId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const mappedActivity = (data.data || []).map((item: any) => ({
+          ...item,
+          formattedField: formatFieldName(item.field),
+        }));
+        setActivityData(mappedActivity);
+      } else {
+        console.error('Failed to fetch activity data');
+      }
+    } catch (error) {
+      console.error('Error fetching activity data:', error);
+    }
+    setIsLoadingActivity(false);
+  }
+
+  // Fetch Comments data from Salesforce via API route
+  async function fetchCommentsData(caseSfId: string) {
+    setIsLoadingComments(true);
+    try {
+      const res = await fetch(`/api/salesforce/case/comments?id=${caseSfId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const mappedComments = (data.data || []).map((item: any) => ({
+          commentBody: item.commentBody,
+          createdAt: item.createdAt,
+          createdByName: item.createdByName,
+        }));
+        setCommentsData(mappedComments);
+      } else {
+        console.error('Failed to fetch comments data');
+      }
+    } catch (error) {
+      console.error('Error fetching comments data:', error);
+    }
+    setIsLoadingComments(false);
+  }
+
+  // Fetch Attachments data from Salesforce via API route
+  async function fetchAttachmentsData(caseSfId: string) {
+    setIsLoadingAttachments(true);
+    try {
+      const res = await fetch(`/api/salesforce/case/attachments?id=${caseSfId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAttachmentsData(data.data || []);
+      } else {
+        console.error('Failed to fetch attachments data');
+      }
+    } catch (error) {
+      console.error('Error fetching attachments data:', error);
+    }
+    setIsLoadingAttachments(false);
+  }
 
   useEffect(() => {
     async function fetchCaseDetail() {
@@ -75,15 +156,15 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             subject,
             status,
             created_at,
-            case_sf_id,
-            contact_sf_id,
-            contact:contact_sf_id (
-              fullName,
-              phone,
-              account:account_id (name, account_sf_id),
-              users:user_id (email)
-            )
-          `)
+          case_sf_id,
+          contact_sf_id,
+          contact:contact_sf_id (
+            fullName,
+            phone,
+            account:account_id (name, account_sf_id),
+            users:user_id (email)
+          )
+        `)
           .eq('caseNumber', normalizedCaseNumber)
           .maybeSingle();
         data = result.data;
@@ -118,6 +199,13 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             company: account?.name || 'Unknown Company'
           }
         });
+
+        // Fetch Salesforce data if case_sf_id exists
+        if (data.case_sf_id) {
+          fetchActivityData(data.case_sf_id);
+          fetchCommentsData(data.case_sf_id);
+          fetchAttachmentsData(data.case_sf_id);
+        }
       }
       setIsLoading(false);
     }
@@ -338,127 +426,59 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               {/* History Title */}
               <h2 className="text-xl font-bold text-slate-800 mt-2">History</h2>
 
-              {/* Timeline */}
-              <div className="space-y-4">
-                
-                {/* Event Item 1 */}
-                <div className="relative pl-10">
-                  <div className="absolute left-[15px] top-4 w-px h-[calc(100%+16px)] bg-slate-100 -z-10"></div>
-                  <div className="absolute left-0 top-3 w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border-[3px] border-white shadow-sm">
-                    <CircleDashed className="w-4 h-4 text-blue-500" />
-                  </div>
-                  
-                  <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className="font-bold text-slate-800">Triggered an event </span>
-                        <span className="text-[#e85d04] font-bold">webinar-email-follow-up</span>
-                      </div>
-                      <span className="text-xs text-slate-400 font-medium">December 14, 2023 at 3:31 PM</span>
-                    </div>
-                    
-                    <div className="mb-4">
-                      <button className="flex items-center gap-1 text-sm font-bold text-slate-800 mb-2">
-                        Hide data <ChevronUp className="w-4 h-4" />
-                      </button>
-                      <div className="pl-3 border-l-2 border-[#ffb703] py-1">
-                        <div className="text-sm">
-                          <span className="text-slate-400 font-medium mr-2">source</span>
-                          <span className="text-slate-500 font-medium">Christmas Promotion Website</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-slate-400">
-                      <User className="w-4 h-4" /> Triggered by: <span className="font-medium text-slate-500">John Lock</span>
-                    </div>
-                  </div>
+              {/* Activity Table */}
+              {isLoadingActivity ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">Loading activity...</div>
                 </div>
-
-                {/* Event Item 2 (Rating) */}
-                <div className="relative pl-10">
-                  <div className="absolute left-[15px] top-4 w-px h-[calc(100%+16px)] bg-slate-100 -z-10"></div>
-                  <div className="absolute left-0 top-3 w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border-[3px] border-white shadow-sm">
-                    <Star className="w-4 h-4 text-blue-500" />
-                  </div>
-                  
-                  <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex gap-1">
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-slate-200" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full overflow-hidden bg-amber-100">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Adam&backgroundColor=fbbf24" alt="Adam" className="w-full h-full object-cover" />
-                          </div>
-                          <span className="font-bold text-slate-800 text-sm">Adam Pierson</span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-slate-400 font-medium">December 14, 2023 at 10:32 AM</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-slate-400">
-                      <User className="w-4 h-4" /> Operator: <span className="font-medium text-slate-500">Jane Smith</span>
-                    </div>
-                  </div>
+              ) : activityData.length > 0 ? (
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 border-b border-slate-100">
+                      <tr>
+                        <th className="font-semibold py-3 px-4 text-slate-600 uppercase tracking-wider text-xs">Field</th>
+                        <th className="font-semibold py-3 px-4 text-slate-600 uppercase tracking-wider text-xs">Old Value</th>
+                        <th className="font-semibold py-3 px-4 text-slate-600 uppercase tracking-wider text-xs">New Value</th>
+                        <th className="font-semibold py-3 px-4 text-slate-600 uppercase tracking-wider text-xs">Changed By</th>
+                        <th className="font-semibold py-3 px-4 text-slate-600 uppercase tracking-wider text-xs">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {activityData.map((activity: any, index: number) => (
+                        <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-slate-800">{activity.formattedField || formatFieldName(activity.field) || 'N/A'}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-slate-600">{activity.oldValue || '-'}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-slate-600">{activity.newValue || '-'}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-slate-600">{activity.createdByName || 'Unknown'}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-slate-600">
+                              {activity.createdAt ? new Date(activity.createdAt).toLocaleString("en-US", { 
+                                month: "short", 
+                                day: "numeric", 
+                                year: "numeric",
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-
-                {/* Event Item 3 */}
-                <div className="relative pl-10">
-                  <div className="absolute left-[15px] top-4 w-px h-[calc(100%+16px)] bg-slate-100 -z-10"></div>
-                  <div className="absolute left-0 top-3 w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border-[3px] border-white shadow-sm">
-                    <CircleDashed className="w-4 h-4 text-blue-500" />
-                  </div>
-                  
-                  <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className="font-bold text-slate-800">Triggered an event </span>
-                        <span className="text-[#38b000] font-bold">shopify:plugin-configuration-setup</span>
-                      </div>
-                      <span className="text-xs text-slate-400 font-medium">December 13, 2023 at 2:15 PM</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-slate-400">
-                      <User className="w-4 h-4" /> Triggered by: <span className="font-medium text-slate-500">Lora Adams</span>
-                    </div>
-                  </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">No activity data available</div>
                 </div>
-
-                {/* Event Item 4 (Rating) */}
-                <div className="relative pl-10">
-                  <div className="absolute left-0 top-3 w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center border-[3px] border-white shadow-sm">
-                    <Star className="w-4 h-4 text-blue-500" />
-                  </div>
-                  
-                  <div className="bg-white border border-slate-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="flex gap-1">
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
-                          <Star className="w-5 h-5 text-slate-200" />
-                          <Star className="w-5 h-5 text-slate-200" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full overflow-hidden bg-rose-100">
-                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Evelina&backgroundColor=fda4af" alt="Evelina" className="w-full h-full object-cover" />
-                          </div>
-                          <span className="font-bold text-slate-800 text-sm">Evelina O'Brian</span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-slate-400 font-medium">December 13, 2023 at 11:47 AM</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
+              )}
             </div>
           )}
           
@@ -487,43 +507,49 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <div className="bg-white border border-slate-200 rounded-xl flex flex-col h-[600px] shadow-sm">
               <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-800">Comments</h2>
-                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">2 Comments</span>
+                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md">{commentsData.length} Comments</span>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Comment 1 */}
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ana" alt="Ana" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="font-bold text-slate-800 text-sm">Ana Belić</span>
-                      <span className="text-xs text-slate-400 font-medium">May 21, 2026 at 10:35 AM</span>
-                    </div>
-                    <div className="bg-slate-50 border border-slate-100 rounded-2xl rounded-tl-none p-4 text-sm text-slate-700">
-                      Saya sudah coba hapus cache browser tapi masih tetap tidak bisa login.
-                    </div>
-                  </div>
+              {isLoadingComments ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">Loading comments...</div>
                 </div>
-
-                {/* Comment 2 */}
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-100 flex-shrink-0">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Felix" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="font-bold text-slate-800 text-sm">Admin Support</span>
-                      <span className="text-xs text-slate-400 font-medium">May 21, 2026 at 11:00 AM</span>
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase tracking-wider ml-2">Staff</span>
+              ) : commentsData.length > 0 ? (
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {commentsData.map((comment: any, index: number) => (
+                    <div key={index} className="flex gap-4">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
+                        <img 
+                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.createdByName || 'User'}`} 
+                          alt={comment.createdByName || 'User'} 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="font-bold text-slate-800 text-sm">{comment.createdByName || 'Unknown'}</span>
+                          <span className="text-xs text-slate-400 font-medium">
+                            {comment.createdAt ? new Date(comment.createdAt).toLocaleString("en-US", { 
+                              month: "short", 
+                              day: "numeric", 
+                              year: "numeric",
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl rounded-tl-none p-4 text-sm text-slate-700">
+                          {comment.commentBody || 'No content'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-blue-50 border border-blue-100 rounded-2xl rounded-tl-none p-4 text-sm text-slate-700">
-                      Baik Bu Ana, kami sedang mengecek log dari server kami. Mohon ditunggu update selanjutnya.
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">No comments available</div>
+                </div>
+              )}
 
               <div className="p-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
                 <div className="relative">
@@ -549,39 +575,42 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 </Button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Attachment Card 1 */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer">
-                  <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center text-red-500 flex-shrink-0">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <div className="font-bold text-sm text-slate-800 truncate">error_log_001.pdf</div>
-                    <div className="text-xs text-slate-500 mt-1">2.4 MB • PDF Document</div>
-                  </div>
-                  <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-md" title="Download">
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
+              {isLoadingAttachments ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">Loading attachments...</div>
                 </div>
-
-                {/* Attachment Card 2 */}
-                <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <div className="font-bold text-sm text-slate-800 truncate">screenshot_login_page.png</div>
-                    <div className="text-xs text-slate-500 mt-1">1.1 MB • PNG Image</div>
-                  </div>
-                  <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-md" title="Download">
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
+              ) : attachmentsData.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {attachmentsData.map((attachment: any, index: number) => (
+                    <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer">
+                      <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <div className="font-bold text-sm text-slate-800 truncate">{attachment.name || attachment.fileName || `Attachment ${index + 1}`}</div>
+                        <div className="text-xs text-slate-500 mt-1">{attachment.type || attachment.fileType || 'File'}</div>
+                      </div>
+                      <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-md" 
+                          title="Download"
+                          onClick={() => {
+                            if (attachment.url) {
+                              window.open(attachment.url, '_blank');
+                            }
+                          }}
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-slate-500 font-medium">No attachments available</div>
+                </div>
+              )}
             </div>
           )}
 

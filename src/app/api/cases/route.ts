@@ -58,28 +58,10 @@ export async function POST(request: NextRequest) {
 
   const sfEnabled = settings?.salesforce_enabled === true;
 
-  // 1. Generate random case number and save to Supabase first
-  const caseNumber = generateRandomCaseNumber();
+  // 1. If Salesforce is enabled, create case in Salesforce first
+  let sfCaseId = null;
+  let sfCaseNumber = null;
 
-  // Insert into Supabase
-  const { data: newCase, error: insertError } = await supabaseAdmin
-    .from("case")
-    .insert({
-      case_sf_id: null,
-      contact_sf_id: contactSfId,
-      caseNumber: caseNumber,
-      subject,
-      status: "New",
-    })
-    .select("id, caseNumber, case_sf_id, status, created_at")
-    .single();
-
-  if (insertError) {
-    console.error("Supabase insert error:", insertError);
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
-
-  // 2. If Salesforce is enabled, try to sync to Salesforce
   if (sfEnabled) {
     const sfClientId = settings?.client_id;
     const sfClientSecret = settings?.client_secret;
@@ -91,7 +73,6 @@ export async function POST(request: NextRequest) {
         error_type: "SALESFORCE_CONFIG",
         error_message: "Salesforce credentials not configured",
         error_details: "Missing client_id, client_secret, or base_url",
-        case_id: newCase.id,
         user_id: sessionUser.id,
       });
     } else {
@@ -104,8 +85,7 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from("error_log").insert({
           error_type: "SALESFORCE_SYNC_INFO",
           error_message: "Starting Salesforce sync",
-          error_details: `Attempting to sync case ${newCase.caseNumber} to Salesforce`,
-          case_id: newCase.id,
+          error_details: "Attempting to create case in Salesforce first",
           user_id: sessionUser.id,
         });
 
@@ -129,7 +109,6 @@ export async function POST(request: NextRequest) {
             error_type: "SALESFORCE_AUTH",
             error_message: "Failed to authenticate with Salesforce",
             error_details: errText,
-            case_id: newCase.id,
             user_id: sessionUser.id,
           });
           // Don't fail the request, just log the error
@@ -140,7 +119,6 @@ export async function POST(request: NextRequest) {
             error_type: "SALESFORCE_AUTH_SUCCESS",
             error_message: "Successfully authenticated with Salesforce",
             error_details: "Got access token",
-            case_id: newCase.id,
             user_id: sessionUser.id,
           });
 
@@ -171,7 +149,6 @@ export async function POST(request: NextRequest) {
               error_type: "SALESFORCE_CASE_CREATE",
               error_message: "Failed to create case in Salesforce",
               error_details: `${errText} | Payload: ${JSON.stringify(sfCasePayload)}`,
-              case_id: newCase.id,
               user_id: sessionUser.id,
             });
             // Don't fail the request, just log the error
@@ -182,49 +159,25 @@ export async function POST(request: NextRequest) {
               error_type: "SALESFORCE_RESPONSE",
               error_message: "Received response from Salesforce",
               error_details: JSON.stringify(sfResponse),
-              case_id: newCase.id,
               user_id: sessionUser.id,
             });
 
             // Parse custom response structure
             if (sfResponse.status_code === 200 && sfResponse.data && Array.isArray(sfResponse.data) && sfResponse.data.length > 0) {
-              const caseSfId = sfResponse.data[0].caseId;
-              const sfCaseNumber = sfResponse.data[0].caseNumber;
+              sfCaseId = sfResponse.data[0].caseId;
+              sfCaseNumber = sfResponse.data[0].caseNumber;
 
-              // Update Supabase case with Salesforce data
-              if (caseSfId) {
-                const { error: updateError } = await supabaseAdmin
-                  .from("case")
-                  .update({
-                    case_sf_id: caseSfId,
-                    caseNumber: sfCaseNumber || caseNumber,
-                  })
-                  .eq("id", newCase.id);
-
-                if (updateError) {
-                  await supabaseAdmin.from("error_log").insert({
-                    error_type: "SUPABASE_UPDATE",
-                    error_message: "Failed to update case with Salesforce data",
-                    error_details: updateError.message,
-                    case_id: newCase.id,
-                    user_id: sessionUser.id,
-                  });
-                } else {
-                  await supabaseAdmin.from("error_log").insert({
-                    error_type: "SALESFORCE_SYNC_SUCCESS",
-                    error_message: "Successfully synced case to Salesforce",
-                    error_details: `Updated case with SF ID: ${caseSfId}, SF Case Number: ${sfCaseNumber}`,
-                    case_id: newCase.id,
-                    user_id: sessionUser.id,
-                  });
-                }
-              }
+              await supabaseAdmin.from("error_log").insert({
+                error_type: "SALESFORCE_SYNC_SUCCESS",
+                error_message: "Successfully created case in Salesforce",
+                error_details: `SF ID: ${sfCaseId}, SF Case Number: ${sfCaseNumber}`,
+                user_id: sessionUser.id,
+              });
             } else {
               await supabaseAdmin.from("error_log").insert({
                 error_type: "SALESFORCE_RESPONSE",
                 error_message: "Unexpected response structure from Salesforce",
                 error_details: JSON.stringify(sfResponse),
-                case_id: newCase.id,
                 user_id: sessionUser.id,
               });
             }
@@ -236,12 +189,31 @@ export async function POST(request: NextRequest) {
           error_type: "SALESFORCE_SYNC",
           error_message: "Salesforce sync error",
           error_details: error instanceof Error ? error.message : String(error),
-          case_id: newCase.id,
           user_id: sessionUser.id,
         });
         // Don't fail the request, just log the error
       }
     }
+  }
+
+  // 2. Insert into Supabase with Salesforce data if available
+  const caseNumber = sfCaseNumber || generateRandomCaseNumber();
+
+  const { data: newCase, error: insertError } = await supabaseAdmin
+    .from("case")
+    .insert({
+      case_sf_id: sfCaseId,
+      contact_sf_id: contactSfId,
+      caseNumber: caseNumber,
+      subject,
+      status: "New",
+    })
+    .select("id, caseNumber, case_sf_id, status, created_at")
+    .single();
+
+  if (insertError) {
+    console.error("Supabase insert error:", insertError);
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
   const { data: finalCase } = await supabaseAdmin

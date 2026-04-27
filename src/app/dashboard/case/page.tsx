@@ -108,8 +108,12 @@ export default function CaseDashboardPage() {
           )
         `);
 
+      // Admin: see all cases
+      if (isAdmin) {
+        // No filter needed, admin sees all cases
+      }
       // Manager: see all cases from contacts under the same account
-      if (isManager && user.account_sf_id) {
+      else if (isManager && user.account_sf_id) {
         const { data: accountContacts } = await supabase
           .from('contact')
           .select('contact_sf_id')
@@ -123,9 +127,8 @@ export default function CaseDashboardPage() {
           return;
         }
       }
-
       // Submitter: only see their own cases (cannot see other submitters' cases)
-      if (isSubmitter && user.contact_sf_id) {
+      else if (isSubmitter && user.contact_sf_id) {
         query = (query as any).eq('contact_sf_id', user.contact_sf_id);
       } else if (isSubmitter && !user.contact_sf_id) {
         setCases([]);
