@@ -31,8 +31,7 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.error || "Login gagal. Coba lagi.");
       } else {
-        router.push("/dashboard/case");
-        router.refresh();
+        window.location.href = "/dashboard/case";
       }
     } catch {
       setError("Tidak bisa terhubung ke server. Periksa koneksi Anda.");

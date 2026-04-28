@@ -36,7 +36,7 @@ function SidebarContent() {
 
   // Role-based nav items — only filter once user is loaded
   const allNavItems = [
-    { title: "Case", href: "/dashboard/case", icon: Briefcase, roles: ["admin", "manager", "submitercase"] },
+    { title: "Case", href: "/dashboard/case", icon: Briefcase, roles: ["admin", "manager", "submittercase"] },
     { title: "Account", href: "/dashboard/account", icon: Building2, roles: ["admin"] },
     { title: "Contact", href: "/dashboard/contact", icon: Users, roles: ["admin", "manager"] },
     { title: "Error Log", href: "/dashboard/error-log", icon: AlertCircle, roles: ["admin"] },

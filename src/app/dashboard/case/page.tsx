@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { Pagination } from "@/components/ui/pagination";
@@ -18,13 +18,51 @@ import {
   X,
   Upload,
   Eye,
-  ChevronRight
+  ChevronRight,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+
+// Counter animation hook
+function useCounterAnimation(target: number, duration: number = 1000) {
+  const [count, setCount] = useState(0);
+  const previousTarget = useRef(0);
+
+  useEffect(() => {
+    if (target === previousTarget.current) return;
+
+    const startCount = previousTarget.current;
+    const endCount = target;
+    const increment = endCount - startCount;
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const currentCount = Math.floor(startCount + increment * easeOutQuart);
+      
+      setCount(currentCount);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setCount(endCount);
+      }
+    };
+
+    requestAnimationFrame(animate);
+    previousTarget.current = target;
+  }, [target, duration]);
+
+  return count;
+}
 
 // Mock data
 const caseStats = [
@@ -68,9 +106,11 @@ export default function CaseDashboardPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [contactFilter, setContactFilter] = useState<string>("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [cases, setCases] = useState<CaseRow[]>([]);
+  const [contacts, setContacts] = useState<Array<{ contact_sf_id: string; fullName: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const { user, isAdmin, isManager, isSubmitter } = useUser();
@@ -84,6 +124,35 @@ export default function CaseDashboardPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+
+  // Fetch contacts for admin and manager
+  useEffect(() => {
+    async function fetchContacts() {
+      if (!user || (!isAdmin && !isManager)) {
+        setContacts([]);
+        return;
+      }
+
+      let query = supabase
+        .from('contact')
+        .select('contact_sf_id, fullName');
+
+      // Manager: only see contacts from their account
+      if (isManager && user.account_sf_id) {
+        query = query.eq('account_sf_id', user.account_sf_id);
+      }
+      // Admin: see all contacts (no filter)
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching contacts:", error);
+      } else if (data) {
+        setContacts(data.filter((c: any) => c.contact_sf_id && c.fullName));
+      }
+    }
+    fetchContacts();
+  }, [user, isAdmin, isManager]);
 
   useEffect(() => {
     async function fetchCases() {
@@ -285,8 +354,9 @@ export default function CaseDashboardPage() {
 
     return dateFilteredCases.filter((caseItem) => {
       const matchesStatus = statusFilter === "All" || caseItem.status === statusFilter;
+      const matchesContact = contactFilter === "All" || caseItem.contactSfId === contactFilter;
 
-      if (!matchesStatus) {
+      if (!matchesStatus || !matchesContact) {
         return false;
       }
 
@@ -298,7 +368,7 @@ export default function CaseDashboardPage() {
         field.toLowerCase().includes(normalizedSearchTerm)
       );
     });
-  }, [dateFilteredCases, searchTerm, statusFilter]);
+  }, [dateFilteredCases, searchTerm, statusFilter, contactFilter]);
 
   const dynamicCaseStats = useMemo(
     () =>
@@ -334,6 +404,7 @@ export default function CaseDashboardPage() {
               onChange={(e) => {
                 setDateFilter(e.target.value as DateFilter);
                 setCurrentPage(1);
+                setContactFilter("All");
               }}
               aria-label="Filter by date range"
             >
@@ -357,30 +428,25 @@ export default function CaseDashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {dynamicCaseStats.map((stat) => (
-          <div
-            key={`${stat.title}-${dateFilter}`}
-            className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <stat.icon className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-500">{stat.title}</span>
+        {dynamicCaseStats.map((stat) => {
+          const animatedCount = useCounterAnimation(stat.count, 800);
+          return (
+            <div
+              key={`${stat.title}-${dateFilter}`}
+              className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <stat.icon className="w-4 h-4 text-slate-400" />
+                <span className="text-sm font-medium text-slate-500">{stat.title}</span>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl font-bold text-slate-800">
+                  {animatedCount}
+                </span>
+              </div>
             </div>
-            <div className="flex items-baseline gap-3">
-              <span
-                key={`${stat.title}-${stat.count}-${dateFilter}`}
-                className="text-3xl font-bold text-slate-800 animate-in fade-in zoom-in-95 duration-300"
-              >
-                {stat.count}
-              </span>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-colors duration-300 ${
-                stat.isPositive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
-              }`}>
-                {stat.trend} {stat.isPositive ? "↑" : "↓"}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Main Table Section */}
@@ -402,7 +468,30 @@ export default function CaseDashboardPage() {
                 }}
               />
             </div>
-            
+
+            {/* Filter by Contact - only for admin and manager */}
+            {(isAdmin || isManager) && (
+              <div className="relative">
+                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <select
+                  className="h-9 rounded-md border border-slate-200 bg-white pl-9 pr-8 text-sm text-slate-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  value={contactFilter}
+                  onChange={(e) => {
+                    setContactFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  aria-label="Filter by contact"
+                >
+                  <option value="All">All Contacts</option>
+                  {contacts.map((contact) => (
+                    <option key={contact.contact_sf_id} value={contact.contact_sf_id}>
+                      {contact.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Filter Status */}
             <div className="relative">
               <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />

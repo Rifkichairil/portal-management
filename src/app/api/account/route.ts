@@ -29,90 +29,18 @@ export async function POST(request: NextRequest) {
   // Fetch current settings to determine whether SF integration is enabled
   const { data: settings } = await supabaseAdmin
     .from("settings")
-    .select("salesforce_enabled, client_id, client_secret")
+    .select("salesforce_enabled, client_id, client_secret, base_url")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   const sfEnabled = settings?.salesforce_enabled === true;
 
-  let accountSfId: string | null = null;
-
-  if (sfEnabled) {
-    // --- Salesforce flow ---
-    const sfClientId = settings?.client_id;
-    const sfClientSecret = settings?.client_secret;
-
-    if (!sfClientId || !sfClientSecret) {
-      return NextResponse.json(
-        { error: "Salesforce credentials not configured." },
-        { status: 500 }
-      );
-    }
-
-    // 1. Get OAuth token from Salesforce
-    const tokenRes = await fetch(
-      "https://login.salesforce.com/services/oauth2/token",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: sfClientId,
-          client_secret: sfClientSecret,
-        }),
-      }
-    );
-
-    if (!tokenRes.ok) {
-      const errText = await tokenRes.text();
-      console.error("SF token error:", errText);
-      return NextResponse.json(
-        { error: "Failed to authenticate with Salesforce." },
-        { status: 502 }
-      );
-    }
-
-    const { access_token, instance_url } = await tokenRes.json();
-
-    // 2. Create Account in Salesforce
-    const sfAccountPayload: Record<string, string> = {
-      Name: name,
-    };
-    if (phone) sfAccountPayload.Phone = phone;
-    if (billingStreet) sfAccountPayload.BillingStreet = billingStreet;
-    if (website) sfAccountPayload.Website = website;
-
-    const sfCreateRes = await fetch(
-      `${instance_url}/services/data/v59.0/sobjects/Account`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(sfAccountPayload),
-      }
-    );
-
-    if (!sfCreateRes.ok) {
-      const errText = await sfCreateRes.text();
-      console.error("SF create account error:", errText);
-      return NextResponse.json(
-        { error: "Failed to create account in Salesforce." },
-        { status: 502 }
-      );
-    }
-
-    const sfCreated = await sfCreateRes.json();
-    accountSfId = sfCreated.id as string;
-  }
-
-  // Insert into Supabase
+  // 1. Insert into Supabase first
   const { data: newAccount, error: insertError } = await supabaseAdmin
     .from("account")
     .insert({
-      account_sf_id: accountSfId,
+      account_sf_id: null,
       name,
       phone: phone || null,
       email: email || null,
@@ -127,5 +55,138 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ account: newAccount }, { status: 201 });
+  // 2. If Salesforce is enabled, sync to Salesforce
+  if (sfEnabled) {
+    const sfClientId = settings?.client_id;
+    const sfClientSecret = settings?.client_secret;
+    const sfBaseUrl = settings?.base_url;
+
+    if (!sfClientId || !sfClientSecret || !sfBaseUrl) {
+      // Log error but don't fail the request
+      await supabaseAdmin.from("error_log").insert({
+        error_type: "SALESFORCE_CONFIG",
+        error_message: "Salesforce credentials not configured",
+        error_details: "Missing client_id, client_secret, or base_url",
+        user_id: sessionUser.id,
+      });
+    } else {
+      try {
+        // Get OAuth token from Salesforce
+        const instanceUrl = sfBaseUrl.includes('/services/oauth2/token')
+          ? sfBaseUrl.replace('/services/oauth2/token', '')
+          : sfBaseUrl;
+
+        const tokenRes = await fetch(
+          `${instanceUrl}/services/oauth2/token`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "client_credentials",
+              client_id: sfClientId,
+              client_secret: sfClientSecret,
+            }),
+          }
+        );
+
+        if (!tokenRes.ok) {
+          const errText = await tokenRes.text();
+          // Log error to error_log table
+          await supabaseAdmin.from("error_log").insert({
+            error_type: "SALESFORCE_AUTH",
+            error_message: "Failed to authenticate with Salesforce",
+            error_details: errText,
+            user_id: sessionUser.id,
+          });
+          // Don't fail the request, just log the error
+        } else {
+          const { access_token } = await tokenRes.json();
+
+          // Create Account in Salesforce using custom Apex REST endpoint
+          const sfAccountPayload: Record<string, any> = {
+            name: name,
+          };
+          if (phone) sfAccountPayload.phone = phone;
+          if (email) sfAccountPayload.email = email;
+          if (website) sfAccountPayload.website = website;
+          if (billingStreet) sfAccountPayload.billingStreet = billingStreet;
+
+          const sfCreateRes = await fetch(
+            `${instanceUrl}/services/apexrest/portal/account`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${access_token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(sfAccountPayload),
+            }
+          );
+
+          if (!sfCreateRes.ok) {
+            const errText = await sfCreateRes.text();
+            // Log error to error_log table
+            await supabaseAdmin.from("error_log").insert({
+              error_type: "SALESFORCE_ACCOUNT_CREATE",
+              error_message: "Failed to create account in Salesforce",
+              error_details: `${errText} | Payload: ${JSON.stringify(sfAccountPayload)}`,
+              user_id: sessionUser.id,
+            });
+            // Don't fail the request, just log the error
+          } else {
+            const sfResponse = await sfCreateRes.json();
+
+            // Parse custom response structure
+            if (sfResponse.status_code === 201 && sfResponse.data && Array.isArray(sfResponse.data) && sfResponse.data.length > 0) {
+              const accountId = sfResponse.data[0].accountId;
+
+              // Update Supabase account with Salesforce ID
+              if (accountId) {
+                const { error: updateError } = await supabaseAdmin
+                  .from("account")
+                  .update({
+                    account_sf_id: accountId,
+                  })
+                  .eq("id", newAccount.id);
+
+                if (updateError) {
+                  await supabaseAdmin.from("error_log").insert({
+                    error_type: "SUPABASE_UPDATE",
+                    error_message: "Failed to update account with Salesforce data",
+                    error_details: updateError.message,
+                    user_id: sessionUser.id,
+                  });
+                } else {
+                  await supabaseAdmin.from("error_log").insert({
+                    error_type: "SALESFORCE_SYNC_SUCCESS",
+                    error_message: "Successfully synced account to Salesforce",
+                    error_details: `Updated account with SF ID: ${accountId}`,
+                    user_id: sessionUser.id,
+                  });
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // Log error to error_log table
+        await supabaseAdmin.from("error_log").insert({
+          error_type: "SALESFORCE_SYNC",
+          error_message: "Salesforce sync error",
+          error_details: error instanceof Error ? error.message : String(error),
+          user_id: sessionUser.id,
+        });
+        // Don't fail the request, just log the error
+      }
+    }
+  }
+
+  // Fetch final account data
+  const { data: finalAccount } = await supabaseAdmin
+    .from("account")
+    .select("id, account_sf_id, name, phone, email, website, billingStreet, created_at")
+    .eq("id", newAccount.id)
+    .maybeSingle();
+
+  return NextResponse.json({ account: finalAccount || newAccount }, { status: 201 });
 }

@@ -51,7 +51,7 @@ export default function ContactDashboardPage() {
           title,
           phone,
           mobile,
-          users:user_id (email),
+          users:user_id (email, role),
           account:account_id (name, account_sf_id),
           case (count)
         `);
@@ -72,7 +72,11 @@ export default function ContactDashboardPage() {
           return {
             id: item.id,
             fullName: item.fullName || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'Unknown',
-            title: item.title || 'N/A',
+            role: userContact?.role
+              ? userContact.role === 'submittercase'
+                ? 'Submitter Case'
+                : userContact.role.charAt(0).toUpperCase() + userContact.role.slice(1)
+              : 'N/A',
             accountName: account?.name || 'Unknown Company',
             phone: item.phone || 'N/A',
             mobile: item.mobile || 'N/A',
@@ -216,7 +220,7 @@ export default function ContactDashboardPage() {
                         </div>
                         <div>
                           <div className="font-bold text-slate-800">{contact.fullName}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">{contact.title}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">{contact.role}</div>
                         </div>
                       </div>
                     </td>

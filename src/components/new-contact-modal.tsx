@@ -24,6 +24,8 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [title, setTitle] = useState("");
+  const [department, setDepartment] = useState("");
   const [accountId, setAccountId] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -73,8 +75,18 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
       return;
     }
 
+    if (!email.includes('@') || !email.includes('.')) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     if (!password.trim()) {
       toast.error("Password is required");
+      return;
+    }
+
+    if (phone.trim() && !/^\+?[0-9]+$/.test(phone.trim())) {
+      toast.error("Phone number can only contain numbers and +");
       return;
     }
 
@@ -121,6 +133,8 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
     setFirstName("");
     setLastName("");
     setPhone("");
+    setTitle("");
+    setDepartment("");
     setAccountId("");
     setUsername("");
     setEmail("");
@@ -187,6 +201,30 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
                   placeholder="Enter phone number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  disabled={isSubmitting}
+                  className="bg-slate-50 border-slate-200"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  placeholder="Enter job title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={isSubmitting}
+                  className="bg-slate-50 border-slate-200"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  placeholder="Enter department"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
                   disabled={isSubmitting}
                   className="bg-slate-50 border-slate-200"
                 />

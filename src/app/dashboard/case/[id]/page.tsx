@@ -173,8 +173,10 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       if (data) {
         const contact = Array.isArray(data.contact) ? data.contact[0] : data.contact;
-        const account = contact && Array.isArray(contact.account) ? contact.account[0] : contact?.account;
-        const userContact = contact && Array.isArray(contact.users) ? contact.users[0] : contact?.users;
+        const accountRaw = contact?.account;
+        const account = Array.isArray(accountRaw) ? accountRaw[0] : accountRaw;
+        const userRaw = contact?.users;
+        const userContact = Array.isArray(userRaw) ? userRaw[0] : userRaw;
 
         // --- Authorization Check ---
         // Submitter: can only view their own cases

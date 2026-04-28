@@ -64,7 +64,7 @@ SET
   updated_at = NOW(),
   deleted_at = NULL;
 
--- 2) Upsert 10 users: 1 admin, 3 manager, 6 submitercase
+-- 2) Upsert 10 users: 1 admin, 3 manager, 6 submittercase
 WITH upsert_users AS (
   INSERT INTO public.users (email, password, role, username)
   VALUES
@@ -74,12 +74,12 @@ WITH upsert_users AS (
     ('manager.bima@example.com', 'Manager#2026!', 'manager', 'manager_bima'),
     ('manager.cahya@example.com', 'Manager#2026!', 'manager', 'manager_cahya'),
 
-    ('submitter.01@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_01'),
-    ('submitter.02@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_02'),
-    ('submitter.03@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_03'),
-    ('submitter.04@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_04'),
-    ('submitter.05@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_05'),
-    ('submitter.06@example.com', 'Submitter#2026!', 'submitercase', 'submitter_case_06')
+    ('submitter.01@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_01'),
+    ('submitter.02@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_02'),
+    ('submitter.03@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_03'),
+    ('submitter.04@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_04'),
+    ('submitter.05@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_05'),
+    ('submitter.06@example.com', 'Submitter#2026!', 'submittercase', 'submitter_case_06')
   ON CONFLICT (username) DO UPDATE
   SET
     email = EXCLUDED.email,

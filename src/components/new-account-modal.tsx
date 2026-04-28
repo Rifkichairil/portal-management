@@ -31,6 +31,16 @@ export default function NewAccountModal({ isOpen, onClose, onSuccess }: NewAccou
       return;
     }
 
+    if (phone.trim() && !/^\+?[0-9]+$/.test(phone.trim())) {
+      toast.error("Phone number can only contain numbers and +");
+      return;
+    }
+
+    if (email.trim() && (!email.includes('@') || !email.includes('.'))) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {

@@ -6,7 +6,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   username: string;
-  role: "admin" | "manager" | "submitercase" | string;
+  role: "admin" | "manager" | "submittercase" | string;
   contact_sf_id: string | null;
   account_sf_id: string | null;
 }
@@ -55,7 +55,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAdmin: user?.role === "admin",
         isManager: user?.role === "manager",
-        isSubmitter: user?.role === "submitercase",
+        isSubmitter: user?.role === "submittercase",
       }}
     >
       {children}

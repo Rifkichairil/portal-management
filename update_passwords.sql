@@ -14,7 +14,7 @@ WHERE role = 'manager';
 UPDATE public.users
 SET password = '$2b$12$frIP3u9Wc7/X1jDU07.md.EE1S.4TgUXw/.vfjs.gonB4.qQfDTrK',
     updated_at = NOW()
-WHERE role = 'submitercase';
+WHERE role = 'submittercase';
 
 -- Verify update
 SELECT username, role, LEFT(password, 7) AS password_prefix

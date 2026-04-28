@@ -107,6 +107,14 @@ ADD COLUMN IF NOT EXISTS salesforce_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.settings
 ADD COLUMN IF NOT EXISTS base_url TEXT;
 
+-- Add department column to contact table if it doesn't exist
+ALTER TABLE public.contact
+ADD COLUMN IF NOT EXISTS department TEXT;
+
+-- Add password column to contact table if it doesn't exist
+ALTER TABLE public.contact
+ADD COLUMN IF NOT EXISTS password TEXT;
+
 -- Migration: Change contact table foreign key from account_sf_id to account_id
 -- Drop old foreign key constraint if exists
 DO $$

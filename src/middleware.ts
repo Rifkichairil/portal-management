@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth';
 const ROLE_ROUTES: Record<string, string[]> = {
   admin: ['/dashboard/case', '/dashboard/account', '/dashboard/contact', '/dashboard/settings', '/dashboard/error-log'],
   manager: ['/dashboard/case', '/dashboard/contact'],
-  submitercase: ['/dashboard/case'],
+  submittercase: ['/dashboard/case'],
 };
 
 export async function middleware(request: NextRequest) {
