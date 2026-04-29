@@ -164,6 +164,7 @@ export default function CaseDashboardPage() {
         .select(`
           id,
           caseNumber,
+          case_sf_id,
           subject,
           status,
           created_at,

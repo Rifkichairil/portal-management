@@ -98,7 +98,7 @@ export default function ErrorLogPage() {
                       <td className="py-4 px-4">
                         {log.case ? (
                           <div>
-                            <div className="font-medium text-slate-700">{log.case.caseNumber}</div>
+                            <div className="font-medium text-slate-700">{log.case.case_sf_id || log.case.caseNumber}</div>
                             <div className="text-xs text-slate-500 truncate max-w-[150px]">{log.case.subject}</div>
                           </div>
                         ) : (
@@ -220,7 +220,7 @@ export default function ErrorLogPage() {
                   <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                     {selectedLog.case ? (
                       <div>
-                        <div className="font-medium text-slate-700">{selectedLog.case.caseNumber}</div>
+                        <div className="font-medium text-slate-700">{selectedLog.case.case_sf_id || selectedLog.case.caseNumber}</div>
                         <div className="text-xs text-slate-500">{selectedLog.case.subject}</div>
                       </div>
                     ) : (

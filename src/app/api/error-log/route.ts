@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
       case_id,
       user_id,
       case:case_id (
+        case_sf_id,
         caseNumber,
         subject
       ),

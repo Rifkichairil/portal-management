@@ -61,60 +61,69 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   // Fetch Activity data from Salesforce via API route
   async function fetchActivityData(caseSfId: string) {
+    console.log("[Activity Tab] Fetching activity data for case_sf_id:", caseSfId);
     setIsLoadingActivity(true);
     try {
       const res = await fetch(`/api/salesforce/case/activity?id=${caseSfId}`);
       if (res.ok) {
         const data = await res.json();
+        console.log("[Activity Tab] Successfully fetched activity data:", data);
         const mappedActivity = (data.data || []).map((item: any) => ({
           ...item,
           formattedField: formatFieldName(item.field),
         }));
         setActivityData(mappedActivity);
+        console.log("[Activity Tab] Mapped activity data:", mappedActivity);
       } else {
-        console.error('Failed to fetch activity data');
+        console.error('[Activity Tab] Failed to fetch activity data, status:', res.status);
       }
     } catch (error) {
-      console.error('Error fetching activity data:', error);
+      console.error('[Activity Tab] Error fetching activity data:', error);
     }
     setIsLoadingActivity(false);
   }
 
   // Fetch Comments data from Salesforce via API route
   async function fetchCommentsData(caseSfId: string) {
+    console.log("[Comments Tab] Fetching comments data for case_sf_id:", caseSfId);
     setIsLoadingComments(true);
     try {
       const res = await fetch(`/api/salesforce/case/comments?id=${caseSfId}`);
       if (res.ok) {
         const data = await res.json();
+        console.log("[Comments Tab] Successfully fetched comments data:", data);
         const mappedComments = (data.data || []).map((item: any) => ({
           commentBody: item.commentBody,
           createdAt: item.createdAt,
           createdByName: item.createdByName,
         }));
         setCommentsData(mappedComments);
+        console.log("[Comments Tab] Mapped comments data:", mappedComments);
       } else {
-        console.error('Failed to fetch comments data');
+        console.error('[Comments Tab] Failed to fetch comments data, status:', res.status);
       }
     } catch (error) {
-      console.error('Error fetching comments data:', error);
+      console.error('[Comments Tab] Error fetching comments data:', error);
     }
     setIsLoadingComments(false);
   }
 
   // Fetch Attachments data from Salesforce via API route
   async function fetchAttachmentsData(caseSfId: string) {
+    console.log("[Attachments Tab] Fetching attachments data for case_sf_id:", caseSfId);
     setIsLoadingAttachments(true);
     try {
       const res = await fetch(`/api/salesforce/case/attachments?id=${caseSfId}`);
       if (res.ok) {
         const data = await res.json();
+        console.log("[Attachments Tab] Successfully fetched attachments data:", data);
         setAttachmentsData(data.data || []);
+        console.log("[Attachments Tab] Set attachments data:", data.data);
       } else {
-        console.error('Failed to fetch attachments data');
+        console.error('[Attachments Tab] Failed to fetch attachments data, status:', res.status);
       }
     } catch (error) {
-      console.error('Error fetching attachments data:', error);
+      console.error('[Attachments Tab] Error fetching attachments data:', error);
     }
     setIsLoadingAttachments(false);
   }
