@@ -147,7 +147,10 @@ export async function POST(request: NextRequest) {
             error_details: errText,
             user_id: sessionUser.id,
           });
-          // Don't fail the request, just log the error
+          // Delete the record from Supabase since SF sync failed
+          await supabaseAdmin.from("contact").delete().eq("id", newContact.id);
+          await supabaseAdmin.from("users").delete().eq("id", userId);
+          return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
         } else {
           const { access_token } = await tokenRes.json();
 
@@ -184,7 +187,10 @@ export async function POST(request: NextRequest) {
               error_details: `${errText} | Payload: ${JSON.stringify(sfContactPayload)}`,
               user_id: sessionUser.id,
             });
-            // Don't fail the request, just log the error
+            // Delete the record from Supabase since SF sync failed
+            await supabaseAdmin.from("contact").delete().eq("id", newContact.id);
+            await supabaseAdmin.from("users").delete().eq("id", userId);
+            return NextResponse.json({ error: "Failed to create contact in Salesforce" }, { status: 500 });
           } else {
             const sfResponse = await sfCreateRes.json();
 
@@ -217,6 +223,17 @@ export async function POST(request: NextRequest) {
                   });
                 }
               }
+            } else {
+              await supabaseAdmin.from("error_log").insert({
+                error_type: "SALESFORCE_RESPONSE",
+                error_message: "Unexpected response structure from Salesforce",
+                error_details: JSON.stringify(sfResponse),
+                user_id: sessionUser.id,
+              });
+              // Delete the record from Supabase since SF response is invalid
+              await supabaseAdmin.from("contact").delete().eq("id", newContact.id);
+              await supabaseAdmin.from("users").delete().eq("id", userId);
+              return NextResponse.json({ error: "Unexpected response from Salesforce" }, { status: 500 });
             }
           }
         }
@@ -228,7 +245,10 @@ export async function POST(request: NextRequest) {
           error_details: error instanceof Error ? error.message : String(error),
           user_id: sessionUser.id,
         });
-        // Don't fail the request, just log the error
+        // Delete the record from Supabase since SF sync failed
+        await supabaseAdmin.from("contact").delete().eq("id", newContact.id);
+        await supabaseAdmin.from("users").delete().eq("id", userId);
+        return NextResponse.json({ error: "Salesforce sync error" }, { status: 500 });
       }
     }
   }

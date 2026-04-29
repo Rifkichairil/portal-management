@@ -18,8 +18,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
   }
 
-  // Fetch error logs
-  const { data: errorLogs, error } = await supabaseAdmin
+  // Get pagination parameters
+  const searchParams = request.nextUrl.searchParams;
+  const page = parseInt(searchParams.get("page") || "1");
+  const pageSize = parseInt(searchParams.get("pageSize") || "10");
+  const offset = (page - 1) * pageSize;
+
+  // Build query with role-based filtering
+  let query = supabaseAdmin
     .from("error_log")
     .select(`
       id,
@@ -37,13 +43,29 @@ export async function GET(request: NextRequest) {
         username,
         email
       )
-    `)
+    `, { count: "exact" });
+
+  // Non-admin users can only see their own error logs
+  if (sessionUser.role !== 'admin') {
+    query = query.eq("user_id", sessionUser.id);
+  }
+
+  // Fetch error logs with pagination
+  const { data: errorLogs, error, count } = await query
     .order("created_at", { ascending: false })
-    .limit(100);
+    .range(offset, offset + pageSize - 1);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ errorLogs });
+  return NextResponse.json({
+    errorLogs,
+    pagination: {
+      page,
+      pageSize,
+      total: count || 0,
+      totalPages: Math.ceil((count || 0) / pageSize)
+    }
+  });
 }

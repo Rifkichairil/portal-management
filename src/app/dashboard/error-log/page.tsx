@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
-import { AlertCircle, Calendar, User, FileText, X } from "lucide-react";
+import { AlertCircle, Calendar, User, FileText, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ErrorLogPage() {
@@ -11,23 +11,22 @@ export default function ErrorLogPage() {
   const [errorLogs, setErrorLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [selectedLog, setSelectedLog] = useState<any>(null);
-
-  useEffect(() => {
-    console.log("Error Log Page - isAdmin:", isAdmin, "isLoading:", isLoading, "user role:", user?.role);
-    if (!isLoading && !isAdmin) {
-      window.location.href = "/dashboard/case";
-    }
-  }, [isAdmin, isLoading, user]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 0
+  });
 
   useEffect(() => {
     async function fetchErrorLogs() {
-      if (!isAdmin) return;
       setIsLoadingLogs(true);
       try {
-        const res = await fetch("/api/error-log");
+        const res = await fetch(`/api/error-log?page=${pagination.page}&pageSize=${pagination.pageSize}`);
         if (res.ok) {
           const json = await res.json();
           setErrorLogs(json.errorLogs || []);
+          setPagination(json.pagination || pagination);
         }
       } catch (error) {
         console.error("Error fetching error logs:", error);
@@ -35,18 +34,22 @@ export default function ErrorLogPage() {
         setIsLoadingLogs(false);
       }
     }
-    if (!isLoading && isAdmin) {
+    if (!isLoading) {
       fetchErrorLogs();
     }
-  }, [isLoading, isAdmin]);
+  }, [isLoading, pagination.page, pagination.pageSize]);
 
-  if (isLoading || !isAdmin) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-slate-500 font-medium">Loading...</div>
       </div>
     );
   }
+
+  const handlePageChange = (newPage: number) => {
+    setPagination({ ...pagination, page: newPage });
+  };
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -68,66 +71,102 @@ export default function ErrorLogPage() {
             <p className="text-slate-500">No error logs found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="text-slate-400 border-b border-slate-100">
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Type</th>
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Message</th>
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Case</th>
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">User</th>
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Date</th>
-                  <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {errorLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="py-4 px-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                        {log.error_type}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 max-w-md truncate text-slate-700">
-                      {log.error_message}
-                    </td>
-                    <td className="py-4 px-4">
-                      {log.case ? (
-                        <div>
-                          <div className="font-medium text-slate-700">{log.case.caseNumber}</div>
-                          <div className="text-xs text-slate-500 truncate max-w-[150px]">{log.case.subject}</div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-4">
-                      {log.user ? (
-                        <div>
-                          <div className="font-medium text-slate-700">{log.user.username}</div>
-                          <div className="text-xs text-slate-500 truncate max-w-[150px]">{log.user.email}</div>
-                        </div>
-      ) : (
-                        <span className="text-slate-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-4 px-4 text-slate-600">
-                      {new Date(log.created_at).toLocaleString()}
-                    </td>
-                    <td className="py-4 px-4">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedLog(log)}
-                        className="text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100"
-                      >
-                        View Details
-                      </Button>
-                    </td>
+          <div className="space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-100">
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Type</th>
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Message</th>
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Case</th>
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">User</th>
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Date</th>
+                    <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {errorLogs.map((log) => (
+                    <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                      <td className="py-4 px-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                          {log.error_type}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 max-w-md truncate text-slate-700">
+                        {log.error_message}
+                      </td>
+                      <td className="py-4 px-4">
+                        {log.case ? (
+                          <div>
+                            <div className="font-medium text-slate-700">{log.case.caseNumber}</div>
+                            <div className="text-xs text-slate-500 truncate max-w-[150px]">{log.case.subject}</div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
+                        {log.user ? (
+                          <div>
+                            <div className="font-medium text-slate-700">{log.user.username}</div>
+                            <div className="text-xs text-slate-500 truncate max-w-[150px]">{log.user.email}</div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-4 text-slate-600">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-4 px-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedLog(log)}
+                          className="text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                        >
+                          View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <div className="text-sm text-slate-500">
+                  Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} entries
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={pagination.page === 1}
+                    className="gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm text-slate-600 px-2">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={pagination.page === pagination.totalPages}
+                    className="gap-1"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

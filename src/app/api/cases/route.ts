@@ -58,10 +58,28 @@ export async function POST(request: NextRequest) {
 
   const sfEnabled = settings?.salesforce_enabled === true;
 
-  // 1. If Salesforce is enabled, create case in Salesforce first
-  let sfCaseId = null;
-  let sfCaseNumber = null;
+  // 1. Insert into Supabase first (with null case_sf_id and generated caseNumber)
+  const caseNumber = generateRandomCaseNumber();
 
+  const { data: newCase, error: insertError } = await supabaseAdmin
+    .from("case")
+    .insert({
+      case_sf_id: null,
+      contact_sf_id: contactSfId,
+      caseNumber: caseNumber,
+      subject,
+      description: description || null,
+      status: "New",
+    })
+    .select("id, caseNumber, case_sf_id, status, created_at")
+    .single();
+
+  if (insertError) {
+    console.error("Supabase insert error:", insertError);
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  // 2. If Salesforce is enabled, sync to Salesforce
   if (sfEnabled) {
     const sfClientId = settings?.client_id;
     const sfClientSecret = settings?.client_secret;
@@ -85,7 +103,7 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from("error_log").insert({
           error_type: "SALESFORCE_SYNC_INFO",
           error_message: "Starting Salesforce sync",
-          error_details: "Attempting to create case in Salesforce first",
+          error_details: "Attempting to create case in Salesforce",
           user_id: sessionUser.id,
         });
 
@@ -111,7 +129,9 @@ export async function POST(request: NextRequest) {
             error_details: errText,
             user_id: sessionUser.id,
           });
-          // Don't fail the request, just log the error
+          // Delete the record from Supabase since SF sync failed
+          await supabaseAdmin.from("case").delete().eq("id", newCase.id);
+          return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
         } else {
           const { access_token } = await tokenRes.json();
 
@@ -128,6 +148,7 @@ export async function POST(request: NextRequest) {
             description: description || "",
             origin: "Web",
             images: images || [],
+            submitterBy: contactSfId,
           };
 
           const sfCreateRes = await fetch(
@@ -151,7 +172,9 @@ export async function POST(request: NextRequest) {
               error_details: `${errText} | Payload: ${JSON.stringify(sfCasePayload)}`,
               user_id: sessionUser.id,
             });
-            // Don't fail the request, just log the error
+            // Delete the record from Supabase since SF sync failed
+            await supabaseAdmin.from("case").delete().eq("id", newCase.id);
+            return NextResponse.json({ error: "Failed to create case in Salesforce" }, { status: 500 });
           } else {
             const sfResponse = await sfCreateRes.json();
 
@@ -164,15 +187,33 @@ export async function POST(request: NextRequest) {
 
             // Parse custom response structure
             if (sfResponse.status_code === 200 && sfResponse.data && Array.isArray(sfResponse.data) && sfResponse.data.length > 0) {
-              sfCaseId = sfResponse.data[0].caseId;
-              sfCaseNumber = sfResponse.data[0].caseNumber;
+              const sfCaseId = sfResponse.data[0].caseId;
+              const sfCaseNumber = sfResponse.data[0].caseNumber;
 
-              await supabaseAdmin.from("error_log").insert({
-                error_type: "SALESFORCE_SYNC_SUCCESS",
-                error_message: "Successfully created case in Salesforce",
-                error_details: `SF ID: ${sfCaseId}, SF Case Number: ${sfCaseNumber}`,
-                user_id: sessionUser.id,
-              });
+              // Update Supabase case with Salesforce data
+              const { error: updateError } = await supabaseAdmin
+                .from("case")
+                .update({
+                  case_sf_id: sfCaseId,
+                  caseNumber: sfCaseNumber,
+                })
+                .eq("id", newCase.id);
+
+              if (updateError) {
+                await supabaseAdmin.from("error_log").insert({
+                  error_type: "SUPABASE_UPDATE",
+                  error_message: "Failed to update case with Salesforce data",
+                  error_details: updateError.message,
+                  user_id: sessionUser.id,
+                });
+              } else {
+                await supabaseAdmin.from("error_log").insert({
+                  error_type: "SALESFORCE_SYNC_SUCCESS",
+                  error_message: "Successfully synced case to Salesforce",
+                  error_details: `Updated case with SF ID: ${sfCaseId}, SF Case Number: ${sfCaseNumber}`,
+                  user_id: sessionUser.id,
+                });
+              }
             } else {
               await supabaseAdmin.from("error_log").insert({
                 error_type: "SALESFORCE_RESPONSE",
@@ -180,6 +221,9 @@ export async function POST(request: NextRequest) {
                 error_details: JSON.stringify(sfResponse),
                 user_id: sessionUser.id,
               });
+              // Delete the record from Supabase since SF response is invalid
+              await supabaseAdmin.from("case").delete().eq("id", newCase.id);
+              return NextResponse.json({ error: "Unexpected response from Salesforce" }, { status: 500 });
             }
           }
         }
@@ -191,29 +235,11 @@ export async function POST(request: NextRequest) {
           error_details: error instanceof Error ? error.message : String(error),
           user_id: sessionUser.id,
         });
-        // Don't fail the request, just log the error
+        // Delete the record from Supabase since SF sync failed
+        await supabaseAdmin.from("case").delete().eq("id", newCase.id);
+        return NextResponse.json({ error: "Salesforce sync error" }, { status: 500 });
       }
     }
-  }
-
-  // 2. Insert into Supabase with Salesforce data if available
-  const caseNumber = sfCaseNumber || generateRandomCaseNumber();
-
-  const { data: newCase, error: insertError } = await supabaseAdmin
-    .from("case")
-    .insert({
-      case_sf_id: sfCaseId,
-      contact_sf_id: contactSfId,
-      caseNumber: caseNumber,
-      subject,
-      status: "New",
-    })
-    .select("id, caseNumber, case_sf_id, status, created_at")
-    .single();
-
-  if (insertError) {
-    console.error("Supabase insert error:", insertError);
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
   const { data: finalCase } = await supabaseAdmin
