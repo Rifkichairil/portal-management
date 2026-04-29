@@ -61,10 +61,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   // Fetch Activity data from Salesforce via API route
   async function fetchActivityData(caseSfId: string) {
-    console.log("[Activity Tab] Fetching activity data for case_sf_id:", caseSfId);
+    const url = `/api/salesforce/case/activity?id=${caseSfId}`;
+    const fullUrl = `${window.location.origin}${url}`;
+    console.log("[Activity Tab] Fetching activity data");
+    console.log("[Activity Tab] Full URL:", fullUrl);
+    console.log("[Activity Tab] case_sf_id:", caseSfId);
     setIsLoadingActivity(true);
     try {
-      const res = await fetch(`/api/salesforce/case/activity?id=${caseSfId}`);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         console.log("[Activity Tab] Successfully fetched activity data:", data);
@@ -85,10 +89,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   // Fetch Comments data from Salesforce via API route
   async function fetchCommentsData(caseSfId: string) {
-    console.log("[Comments Tab] Fetching comments data for case_sf_id:", caseSfId);
+    const url = `/api/salesforce/case/comments?id=${caseSfId}`;
+    const fullUrl = `${window.location.origin}${url}`;
+    console.log("[Comments Tab] Fetching comments data");
+    console.log("[Comments Tab] Full URL:", fullUrl);
+    console.log("[Comments Tab] case_sf_id:", caseSfId);
     setIsLoadingComments(true);
     try {
-      const res = await fetch(`/api/salesforce/case/comments?id=${caseSfId}`);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         console.log("[Comments Tab] Successfully fetched comments data:", data);
@@ -110,10 +118,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   // Fetch Attachments data from Salesforce via API route
   async function fetchAttachmentsData(caseSfId: string) {
-    console.log("[Attachments Tab] Fetching attachments data for case_sf_id:", caseSfId);
+    const url = `/api/salesforce/case/attachments?id=${caseSfId}`;
+    const fullUrl = `${window.location.origin}${url}`;
+    console.log("[Attachments Tab] Fetching attachments data");
+    console.log("[Attachments Tab] Full URL:", fullUrl);
+    console.log("[Attachments Tab] case_sf_id:", caseSfId);
     setIsLoadingAttachments(true);
     try {
-      const res = await fetch(`/api/salesforce/case/attachments?id=${caseSfId}`);
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         console.log("[Attachments Tab] Successfully fetched attachments data:", data);

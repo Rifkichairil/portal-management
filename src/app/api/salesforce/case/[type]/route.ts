@@ -45,7 +45,20 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
+  const maskValue = (value?: string) =>
+    value ? `${value.slice(0, 6)}...${value.slice(-4)} (len:${value.length})` : "missing";
+
+  console.log(`[Salesforce API - ${type}] Settings fetched:`, {
+    hasClientId: !!settings?.client_id,
+    hasClientSecret: !!settings?.client_secret,
+    hasBaseUrl: !!settings?.base_url,
+    baseUrl: settings?.base_url,
+    clientIdFingerprint: maskValue(settings?.client_id),
+    clientSecretFingerprint: maskValue(settings?.client_secret),
+  });
+
   if (!settings?.client_id || !settings?.client_secret || !settings?.base_url) {
+    console.error(`[Salesforce API - ${type}] Salesforce credentials not configured`);
     return NextResponse.json({ error: "Salesforce credentials not configured" }, { status: 500 });
   }
 
@@ -54,6 +67,8 @@ export async function GET(
     const instanceUrl = settings.base_url.includes('/services/oauth2/token')
       ? settings.base_url.replace('/services/oauth2/token', '')
       : settings.base_url;
+
+    console.log(`[Salesforce API - ${type}] Instance URL:`, instanceUrl);
 
     const tokenRes = await fetch(
       `${instanceUrl}/services/oauth2/token`,
@@ -70,11 +85,33 @@ export async function GET(
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text();
-      console.error("Failed to get Salesforce token:", errText);
+      let egressIp = "unknown";
+
+      try {
+        const ipRes = await fetch("https://api.ipify.org?format=json", {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          egressIp = ipData?.ip || "unknown";
+        }
+      } catch (ipError) {
+        console.error(`[Salesforce API - ${type}] Failed to resolve egress IP:`, ipError);
+      }
+
+      console.error(`[Salesforce API - ${type}] Failed to get Salesforce token:`, {
+        error: errText,
+        egressIp,
+        tokenUrl: `${instanceUrl}/services/oauth2/token`,
+        clientIdFingerprint: maskValue(settings.client_id),
+        baseUrl: settings.base_url,
+      });
       return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
     }
 
     const { access_token } = await tokenRes.json();
+    console.log(`[Salesforce API - ${type}] Successfully obtained access token`);
 
     // Determine endpoint based on type
     let endpoint: string;
@@ -93,8 +130,11 @@ export async function GET(
     }
 
     // Fetch data from Salesforce
+    const dataUrl = `${instanceUrl}${endpoint}?id=${caseId}`;
+    console.log(`[Salesforce API - ${type}] Fetching data from:`, dataUrl);
+
     const dataRes = await fetch(
-      `${instanceUrl}${endpoint}?id=${caseId}`,
+      dataUrl,
       {
         headers: {
           Authorization: `Bearer ${access_token}`,
@@ -105,11 +145,12 @@ export async function GET(
 
     if (!dataRes.ok) {
       const errText = await dataRes.text();
-      console.error(`Failed to fetch ${type} from Salesforce:`, errText);
+      console.error(`[Salesforce API - ${type}] Failed to fetch ${type} from Salesforce:`, errText);
       return NextResponse.json({ error: `Failed to fetch ${type} from Salesforce` }, { status: 500 });
     }
 
     const data = await dataRes.json();
+    console.log(`[Salesforce API - ${type}] Successfully fetched ${type} data:`, data);
     return NextResponse.json(data);
 
   } catch (error) {
