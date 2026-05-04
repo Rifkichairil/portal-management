@@ -5,11 +5,11 @@ import { verifyToken } from '@/lib/auth';
 // Route access rules per role
 const ROLE_ROUTES: Record<string, string[]> = {
   admin: ['/dashboard/case', '/dashboard/account', '/dashboard/contact', '/dashboard/settings', '/dashboard/error-log'],
-  manager: ['/dashboard/case', '/dashboard/contact'],
-  submittercase: ['/dashboard/case'],
+  manager: ['/dashboard/case', '/dashboard/contact', '/dashboard/error-log'],
+  submittercase: ['/dashboard/case', '/dashboard/error-log'],
 };
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Protect all dashboard routes

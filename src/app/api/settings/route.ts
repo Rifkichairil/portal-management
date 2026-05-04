@@ -1,12 +1,29 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { verifyToken } from "@/lib/auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Authenticate user
+  const token = (request as NextRequest).cookies.get("session_token")?.value;
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const sessionUser = await verifyToken(token);
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
+  // Only admins can access settings
+  if (sessionUser.role !== 'admin') {
+    return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+  }
+
   const { data, error } = await supabaseAdmin
     .from("settings")
     .select("id, client_id, client_secret, base_url, salesforce_enabled")
@@ -22,6 +39,22 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Authenticate user
+  const token = (request as NextRequest).cookies.get("session_token")?.value;
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const sessionUser = await verifyToken(token);
+  if (!sessionUser) {
+    return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
+  }
+
+  // Only admins can modify settings
+  if (sessionUser.role !== 'admin') {
+    return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+  }
+
   const body = await request.json();
   const { client_id, client_secret, base_url, salesforce_enabled } = body;
 

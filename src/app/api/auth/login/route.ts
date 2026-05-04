@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { signToken } from '@/lib/auth';
+import { rateLimit, getClientIp } from '@/lib/rate-limiter';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,17 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting: 5 login attempts per 15 minutes per IP
+    const ip = getClientIp(request);
+    const rateLimitResult = rateLimit(ip, 5, 15 * 60 * 1000);
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam beberapa menit.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { identifier, password } = body;
 
@@ -20,15 +32,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user by email or username
-    const { data: user, error } = await supabase
+    // Find user by email or username - use separate queries to avoid SQL injection
+    const { data: userByEmail, error: emailError } = await supabase
       .from('users')
       .select('id, email, username, password, role')
-      .or(`email.eq.${identifier},username.eq.${identifier}`)
+      .eq('email', identifier)
       .is('deleted_at', null)
-      .single();
+      .maybeSingle();
 
-    if (error || !user) {
+    const { data: userByUsername, error: usernameError } = await supabase
+      .from('users')
+      .select('id, email, username, password, role')
+      .eq('username', identifier)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    const user = userByEmail || userByUsername;
+
+    if (!user) {
       return NextResponse.json(
         { error: 'Username atau password salah.' },
         { status: 401 }
@@ -66,7 +87,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set('session_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 60 * 60 * 8, // 8 hours
       path: '/',
     });

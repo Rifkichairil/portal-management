@@ -13,7 +13,7 @@ import {
   Building2,
   Users,
   Bell,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 import { UserProvider, useUser } from "@/lib/user-context";
 import { Toaster } from "react-hot-toast";
@@ -39,7 +39,7 @@ function SidebarContent() {
     { title: "Case", href: "/dashboard/case", icon: Briefcase, roles: ["admin", "manager", "submittercase"] },
     { title: "Account", href: "/dashboard/account", icon: Building2, roles: ["admin"] },
     { title: "Contact", href: "/dashboard/contact", icon: Users, roles: ["admin", "manager"] },
-    { title: "Error Log", href: "/dashboard/error-log", icon: AlertCircle, roles: ["admin"] },
+    { title: "Error Log", href: "/dashboard/error-log", icon: AlertCircle, roles: ["admin", "manager", "submittercase"] },
   ];
 
   const navItems = isLoading
@@ -53,7 +53,7 @@ function SidebarContent() {
   };
 
   return (
-    <aside 
+    <aside
       style={{
         width: effectivelyOpen ? "16rem" : "5rem", // 256px or 80px
       }}
@@ -61,7 +61,7 @@ function SidebarContent() {
     >
       {/* Toggle Button — hidden when screen < 1000px */}
       {!isSmallScreen && (
-        <button 
+        <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className="absolute -right-3 top-20 bg-white border border-slate-200 rounded-full p-1 shadow-sm text-slate-400 hover:text-slate-600 z-10 flex items-center justify-center"
         >
@@ -71,11 +71,20 @@ function SidebarContent() {
 
       {/* Logo Area */}
       <div className={`h-16 md:h-20 flex items-center px-3 md:px-6 border-b border-slate-100 ${effectivelyOpen ? 'justify-start' : 'justify-center'}`}>
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-black rounded flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            in
-          </div>
-          {effectivelyOpen && <span className="font-bold text-lg">PORTAL</span>}
+        <div className="flex items-center justify-center">
+          {effectivelyOpen ? (
+            <img
+              src="/Saasten Logo.png"
+              alt="Saasten"
+              className="h-10 md:h-14 w-auto object-contain mx-auto"
+            />
+          ) : (
+            <img
+              src="/saasten-logo.png"
+              alt="Saasten"
+              className="h-8 w-auto object-contain"
+            />
+          )}
         </div>
       </div>
 
@@ -93,14 +102,14 @@ function SidebarContent() {
               {navItems.map((item, j) => {
                 const isActive = pathname.startsWith(item.href);
                 return (
-                  <Link 
-                    key={j} 
+                  <Link
+                    key={j}
                     href={item.href}
                     className={`flex items-center gap-3 px-2 py-2.5 rounded-lg transition-colors justify-center md:px-3 ${
                       effectivelyOpen ? "md:justify-start" : "md:justify-center"
                     } ${
-                      isActive 
-                        ? "bg-amber-100/50 text-amber-700" 
+                      isActive
+                        ? "bg-amber-100/50 text-amber-700"
                         : "text-slate-600 hover:bg-slate-100"
                     }`}
                     title={item.title}
@@ -119,7 +128,7 @@ function SidebarContent() {
 
       {/* Bottom Actions */}
       <div className="p-2 md:p-4 border-t border-slate-100 flex flex-col gap-2">
-        <button 
+        <button
           className={`flex items-center gap-3 px-2 py-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors justify-center md:px-3 ${
             effectivelyOpen ? "md:justify-start" : "md:justify-center"
           }`}
@@ -131,8 +140,8 @@ function SidebarContent() {
 
         {/* Settings: admin only */}
         {isAdmin && (
-          <Link 
-            href="/dashboard/settings" 
+          <Link
+            href="/dashboard/settings"
             title="Settings"
             className={`flex items-center gap-3 px-2 py-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors justify-center md:px-3 ${
               effectivelyOpen ? "md:justify-start" : "md:justify-center"
@@ -153,7 +162,7 @@ function SidebarContent() {
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {effectivelyOpen && <span className="font-medium text-sm hidden md:inline">Log out</span>}
         </button>
-        
+
         <div className={`mt-2 flex items-center gap-3 px-2 py-2 justify-center md:px-3 ${
           effectivelyOpen ? "md:justify-start" : "md:justify-center"
         }`}>

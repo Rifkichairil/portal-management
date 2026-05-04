@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyToken } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { validatePassword } from "@/lib/password-validator";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,6 +35,15 @@ export async function POST(request: NextRequest) {
 
   if (!username || !email || !password) {
     return NextResponse.json({ error: "Username, email, and password are required" }, { status: 400 });
+  }
+
+  // Validate password strength
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.isValid) {
+    return NextResponse.json(
+      { error: "Password does not meet requirements", details: passwordValidation.errors },
+      { status: 400 }
+    );
   }
 
   if (!accountId) {

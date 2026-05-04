@@ -1,8 +1,12 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'portal-management-secret-key-2025'
-);
+const JWT_SECRET_STRING = process.env.JWT_SECRET;
+
+if (!JWT_SECRET_STRING || JWT_SECRET_STRING.length === 0) {
+  throw new Error('JWT_SECRET environment variable is required and cannot be empty');
+}
+
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STRING);
 
 export interface SessionUser {
   id: string;

@@ -54,13 +54,10 @@ export default function LoginPage() {
       <div className="w-full max-w-[440px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-12 z-10 relative border border-gray-100">
         
         {/* Logo Section */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-0">
           <div className="relative mb-3">
-            <Sun className="w-10 h-10 text-[#d97d5e]" strokeWidth={1.5} />
+            <img src="/logo-login.png" alt="Saasten Logo" className="w-36 h-24" />
           </div>
-          <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-gray-800">
-            PORTAL
-          </span>
         </div>
 
         {/* Header Strings */}
