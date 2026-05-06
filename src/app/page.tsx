@@ -56,7 +56,7 @@ export default function LoginPage() {
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-0">
           <div className="relative mb-3">
-            <img src="/logo-login.png" alt="Saasten Logo" className="w-36 h-24" />
+            <img src="/logo-login.png" alt="Saasten Logo" className="w-36 h-32" />
           </div>
         </div>
 

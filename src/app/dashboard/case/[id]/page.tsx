@@ -17,7 +17,6 @@ import {
   CircleDashed,
   StarHalf,
   ChevronLeft,
-  Check,
   MessageSquare,
   Paperclip,
   Download,
@@ -39,6 +38,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [sfCaseDetail, setSfCaseDetail] = useState<any>(null);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const { user, isAdmin, isManager, isSubmitter } = useUser();
   const router = useRouter();
@@ -102,6 +104,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         console.log("[Comments Tab] Successfully fetched comments data:", data);
         const mappedComments = (data.data || []).map((item: any) => ({
           commentBody: item.commentBody,
+          commentBodyRichtext: item.commentBodyRichtext,
           createdAt: item.createdAt,
           createdByName: item.createdByName,
         }));
@@ -140,6 +143,57 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     setIsLoadingAttachments(false);
   }
 
+  // Fetch case details from Salesforce via API route
+  async function fetchSfCaseDetail(caseSfId: string) {
+    const url = `/api/salesforce/case/detail?id=${caseSfId}`;
+    console.log("[Case Detail] Fetching Salesforce case details");
+    console.log("[Case Detail] case_sf_id:", caseSfId);
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        console.log("[Case Detail] Successfully fetched Salesforce case details:", data);
+        if (data.data && data.data.length > 0) {
+          setSfCaseDetail(data.data[0]);
+        }
+      } else {
+        console.error('[Case Detail] Failed to fetch Salesforce case details, status:', res.status);
+      }
+    } catch (error) {
+      console.error('[Case Detail] Error fetching Salesforce case details:', error);
+    }
+  }
+
+  // Submit comment to Salesforce
+  async function submitComment() {
+    if (!newComment.trim() || !caseData?.case_sf_id) return;
+
+    setIsSubmittingComment(true);
+    try {
+      const res = await fetch(`/api/salesforce/case/comments?id=${caseData.case_sf_id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commentBody: newComment,
+          commentBodyRichtext: "Portal"
+        }),
+      });
+
+      if (res.ok) {
+        console.log("[Comments] Successfully posted comment");
+        setNewComment("");
+        // Refresh comments
+        fetchCommentsData(caseData.case_sf_id);
+      } else {
+        console.error("[Comments] Failed to post comment");
+      }
+    } catch (error) {
+      console.error("[Comments] Error posting comment:", error);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  }
+
   useEffect(() => {
     async function fetchCaseDetail() {
       setIsLoading(true);
@@ -153,6 +207,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           id,
           caseNumber,
           subject,
+          description,
           status,
           created_at,
           case_sf_id,
@@ -175,6 +230,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             id,
             caseNumber,
             subject,
+            description,
             status,
             created_at,
           case_sf_id,
@@ -225,6 +281,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
         // Fetch Salesforce data if case_sf_id exists
         if (data.case_sf_id) {
+          fetchSfCaseDetail(data.case_sf_id);
           fetchActivityData(data.case_sf_id);
           fetchCommentsData(data.case_sf_id);
           fetchAttachmentsData(data.case_sf_id);
@@ -315,19 +372,19 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <div className="p-5 space-y-4 text-sm">
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Category</span>
-                <span className="text-slate-800 font-bold">Technical Support</span>
+                <span className="text-slate-800 font-bold">{sfCaseDetail?.category || 'N/A'}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Sub Category</span>
-                <span className="text-slate-800 font-medium">Login Issue</span>
+                <span className="text-slate-800 font-medium">{sfCaseDetail?.subCategory || 'N/A'}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Origin</span>
-                <span className="text-slate-800 font-medium">Web Portal</span>
+                <span className="text-slate-800 font-medium">{sfCaseDetail?.origin || 'N/A'}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Status</span>
-                <span className="text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded text-xs font-bold w-max">{caseData.status}</span>
+                <span className="text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded text-xs font-bold w-max">{sfCaseDetail?.status || caseData.status}</span>
               </div>
               <div className="w-full h-px bg-slate-100 my-2"></div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
@@ -335,8 +392,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 <span className="text-slate-800 font-bold">{new Date(caseData.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} <span className="text-slate-400 font-medium">{new Date(caseData.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })}</span></span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
-                <span className="text-slate-400 font-medium">Resolution Time</span>
-                <span className="text-slate-800 font-bold">-</span>
+                <span className="text-slate-400 font-medium">Resolution</span>
+                <span className="text-slate-800 font-bold">{sfCaseDetail?.resolution || '-'}</span>
               </div>
             </div>
           </div>
@@ -415,8 +472,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
           {activeTab === "Activity" && (
             <div className="space-y-6">
-              {/* Stage Status */}
-              <div className="flex gap-1 w-full">
+              {/* Stage Status - Hidden */}
+              {/* <div className="flex gap-1 w-full">
                 {stages.map((stage) => {
                   let bgClass = "";
                   let textClass = "";
@@ -444,7 +501,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                     </div>
                   );
                 })}
-              </div>
+              </div> */}
 
               {/* History Title */}
               <h2 className="text-xl font-bold text-slate-800 mt-2">History</h2>
@@ -513,10 +570,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-800 mb-2">Description</h2>
-                <p className="text-slate-600 leading-relaxed">
-                  (Deskripsi belum tersedia di database untuk case ini. Data di bawah ini adalah placeholder).
-                  <br/><br/>
-                  User melaporkan kendala terkait sistem. Saat memasukkan kredensial, sistem menampilkan pesan error. Mohon tim teknis segera mengecek logs pada server.
+                <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
+                  {caseData.description || 'No description available'}
                 </p>
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
@@ -539,34 +594,42 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               ) : commentsData.length > 0 ? (
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                  {commentsData.map((comment: any, index: number) => (
-                    <div key={index} className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
-                        <img 
-                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.createdByName || 'User'}`} 
-                          alt={comment.createdByName || 'User'} 
-                          className="w-full h-full object-cover" 
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-2 mb-1">
-                          <span className="font-bold text-slate-800 text-sm">{comment.createdByName || 'Unknown'}</span>
-                          <span className="text-xs text-slate-400 font-medium">
-                            {comment.createdAt ? new Date(comment.createdAt).toLocaleString("en-US", { 
-                              month: "short", 
-                              day: "numeric", 
-                              year: "numeric",
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }) : 'N/A'}
-                          </span>
+                  {[...commentsData].reverse().map((comment: any, index: number) => {
+                    const isFromPortal = comment.commentBodyRichtext === 'Portal';
+                    const displayName = isFromPortal ? user?.username || user?.email || 'You' : comment.createdByName || 'Unknown';
+                    return (
+                      <div key={index} className={`flex gap-4 ${isFromPortal ? 'flex-row-reverse' : ''}`}>
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
+                          <img
+                            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}`}
+                            alt={displayName}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-2xl rounded-tl-none p-4 text-sm text-slate-700">
-                          {comment.commentBody || 'No content'}
+                        <div className={`flex-1 ${isFromPortal ? 'flex flex-col items-end' : ''}`}>
+                          <div className={`flex items-baseline gap-2 mb-1 ${isFromPortal ? 'flex-row-reverse' : ''}`}>
+                            <span className="font-bold text-slate-800 text-sm">{displayName}</span>
+                          </div>
+                          <div className={`p-4 text-sm max-w-[80%] ${
+                            isFromPortal
+                              ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none'
+                              : 'bg-slate-50 border border-slate-100 rounded-2xl rounded-tl-none text-slate-700'
+                          }`}>
+                            <div className="mb-2">{comment.commentBody || 'No content'}</div>
+                            <div className={`text-xs opacity-70 ${isFromPortal ? 'text-blue-100' : 'text-slate-400'}`}>
+                              {comment.createdAt ? new Date(comment.createdAt).toLocaleString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex items-center justify-center py-8">
@@ -576,13 +639,27 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
               <div className="p-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
                 <div className="relative">
-                  <textarea 
-                    placeholder="Type your comment here..." 
+                  <textarea
+                    placeholder="Type your comment here..."
                     rows={3}
-                    className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white shadow-sm"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    disabled={isSubmittingComment}
+                    className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white shadow-sm disabled:opacity-50"
                   ></textarea>
-                  <button className="absolute bottom-3 right-3 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm">
-                    <Send className="w-4 h-4" />
+                  <button
+                    onClick={submitComment}
+                    disabled={isSubmittingComment || !newComment.trim()}
+                    className="absolute bottom-3 right-3 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingComment ? (
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -591,12 +668,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
           {activeTab === "Attachments" && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-800">Attachments</h2>
-                <Button variant="outline" size="sm" className="bg-white shadow-sm">
-                  <PlusCircle className="w-4 h-4 mr-2" /> Upload File
-                </Button>
-              </div>
+              <h2 className="text-lg font-bold text-slate-800">Attachments</h2>
               
               {isLoadingAttachments ? (
                 <div className="flex items-center justify-center py-8">
