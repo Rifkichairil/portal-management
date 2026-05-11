@@ -177,93 +177,181 @@ export async function POST(
   const unwrappedParams = await params;
   const type = unwrappedParams.type;
 
-  // Only allow POST for comments
-  if (type !== "comments") {
-    return NextResponse.json({ error: "POST only supported for comments" }, { status: 400 });
-  }
+  // Handle different POST requests
+  if (type === "comments") {
+    const searchParams = request.nextUrl.searchParams;
+    const caseId = searchParams.get("id");
 
-  const searchParams = request.nextUrl.searchParams;
-  const caseId = searchParams.get("id");
-
-  if (!caseId) {
-    return NextResponse.json({ error: "Case ID is required" }, { status: 400 });
-  }
-
-  const body = await request.json();
-  const { commentBody } = body;
-  const commentBodyRichtext = body.commentBodyRichtext ?? "Portal";
-
-  if (!commentBody) {
-    return NextResponse.json({ error: "Comment body is required" }, { status: 400 });
-  }
-
-  // Fetch settings
-  const { data: settings } = await supabaseAdmin
-    .from("settings")
-    .select("client_id, client_secret, base_url")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!settings?.client_id || !settings?.client_secret || !settings?.base_url) {
-    console.error("[Salesforce API - POST comments] Salesforce credentials not configured");
-    return NextResponse.json({ error: "Salesforce credentials not configured" }, { status: 500 });
-  }
-
-  try {
-    // Get OAuth token from Salesforce
-    const instanceUrl = settings.base_url.includes('/services/oauth2/token')
-      ? settings.base_url.replace('/services/oauth2/token', '')
-      : settings.base_url;
-
-    const tokenRes = await fetch(
-      `${instanceUrl}/services/oauth2/token`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: settings.client_id,
-          client_secret: settings.client_secret,
-        }),
-      }
-    );
-
-    if (!tokenRes.ok) {
-      console.error("[Salesforce API - POST comments] Failed to get Salesforce token");
-      return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
+    if (!caseId) {
+      return NextResponse.json({ error: "Case ID is required" }, { status: 400 });
     }
 
-    const { access_token } = await tokenRes.json();
+    const body = await request.json();
+    const { commentBody } = body;
 
-    // Post comment to Salesforce
-    const dataUrl = `${instanceUrl}/services/apexrest/portal/case/comments?id=${caseId}`;
-    console.log("[Salesforce API - POST comments] Posting comment to:", dataUrl);
-
-    const dataRes = await fetch(
-      dataUrl,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ commentBody, commentBodyRichtext }),
-      }
-    );
-
-    if (!dataRes.ok) {
-      const errText = await dataRes.text();
-      console.error("[Salesforce API - POST comments] Failed to post comment:", errText);
-      return NextResponse.json({ error: "Failed to post comment to Salesforce" }, { status: 500 });
+    if (!commentBody) {
+      return NextResponse.json({ error: "Comment body is required" }, { status: 400 });
     }
 
-    const data = await dataRes.json();
-    console.log("[Salesforce API - POST comments] Successfully posted comment:", data);
-    return NextResponse.json(data);
+    // Fetch settings
+    const { data: settings } = await supabaseAdmin
+      .from("settings")
+      .select("client_id, client_secret, base_url")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  } catch (error) {
-    console.error("[Salesforce API - POST comments] Error posting comment:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (!settings?.client_id || !settings?.client_secret || !settings?.base_url) {
+      console.error("[Salesforce API - POST comments] Salesforce credentials not configured");
+      return NextResponse.json({ error: "Salesforce credentials not configured" }, { status: 500 });
+    }
+
+    try {
+      // Get OAuth token from Salesforce
+      const instanceUrl = settings.base_url.includes('/services/oauth2/token')
+        ? settings.base_url.replace('/services/oauth2/token', '')
+        : settings.base_url;
+
+      const tokenRes = await fetch(
+        `${instanceUrl}/services/oauth2/token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: settings.client_id,
+            client_secret: settings.client_secret,
+          }),
+        }
+      );
+
+      if (!tokenRes.ok) {
+        console.error("[Salesforce API - POST comments] Failed to get Salesforce token");
+        return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
+      }
+
+      const { access_token } = await tokenRes.json();
+
+      // Post comment to Salesforce
+      const dataUrl = `${instanceUrl}/services/apexrest/portal/case/comments?id=${caseId}`;
+      console.log("[Salesforce API - POST comments] Posting comment to:", dataUrl);
+
+      const dataRes = await fetch(
+        dataUrl,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ commentBody }),
+        }
+      );
+
+      if (!dataRes.ok) {
+        const errText = await dataRes.text();
+        console.error("[Salesforce API - POST comments] Failed to post comment:", errText);
+        return NextResponse.json({ error: "Failed to post comment to Salesforce" }, { status: 500 });
+      }
+
+      const data = await dataRes.json();
+      console.log("[Salesforce API - POST comments] Successfully posted comment:", data);
+      return NextResponse.json(data);
+
+    } catch (error) {
+      console.error("[Salesforce API - POST comments] Error posting comment:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  } else if (type === "attachments") {
+    let payload: { caseId?: string; images?: Array<{ fileName: string; base64Data: string }> };
+
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+    }
+
+    const caseId = payload.caseId;
+    const images = payload.images || [];
+
+    if (!caseId) {
+      return NextResponse.json({ error: "Case ID is required" }, { status: 400 });
+    }
+
+    if (!Array.isArray(images) || images.length === 0) {
+      return NextResponse.json({ error: "Images are required" }, { status: 400 });
+    }
+
+    // Fetch settings
+    const { data: settings } = await supabaseAdmin
+      .from("settings")
+      .select("client_id, client_secret, base_url")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!settings?.client_id || !settings?.client_secret || !settings?.base_url) {
+      console.error("[Salesforce API - POST attachments] Salesforce credentials not configured");
+      return NextResponse.json({ error: "Salesforce credentials not configured" }, { status: 500 });
+    }
+
+    try {
+      // Get OAuth token from Salesforce
+      const instanceUrl = settings.base_url.includes('/services/oauth2/token')
+        ? settings.base_url.replace('/services/oauth2/token', '')
+        : settings.base_url;
+
+      const tokenRes = await fetch(
+        `${instanceUrl}/services/oauth2/token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: settings.client_id,
+            client_secret: settings.client_secret,
+          }),
+        }
+      );
+
+      if (!tokenRes.ok) {
+        console.error("[Salesforce API - POST attachments] Failed to get Salesforce token");
+        return NextResponse.json({ error: "Failed to authenticate with Salesforce" }, { status: 500 });
+      }
+
+      const { access_token } = await tokenRes.json();
+
+      const dataUrl = `${instanceUrl}/services/apexrest/portal/case/images?id=${caseId}`;
+      console.log("[Salesforce API - POST attachments] Uploading images to:", dataUrl);
+      console.log("[Salesforce API - POST attachments] Total images:", images.length);
+
+      const dataRes = await fetch(
+        dataUrl,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ images }),
+        }
+      );
+
+      if (!dataRes.ok) {
+        const errText = await dataRes.text();
+        console.error("[Salesforce API - POST attachments] Failed to upload images to Salesforce:", errText);
+        return NextResponse.json({ error: "Failed to upload images to Salesforce" }, { status: 500 });
+      }
+
+      const data = await dataRes.json();
+      console.log("[Salesforce API - POST attachments] Successfully uploaded images:", data);
+      return NextResponse.json(data);
+
+    } catch (error) {
+      console.error("[Salesforce API - POST attachments] Error uploading images:", error);
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  } else {
+    return NextResponse.json({ error: "POST only supported for comments and attachments" }, { status: 400 });
   }
 }

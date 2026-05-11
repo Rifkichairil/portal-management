@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, type ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
@@ -20,7 +20,9 @@ import {
   MessageSquare,
   Paperclip,
   Download,
-  Send
+  Send,
+  Upload,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -41,6 +43,13 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [sfCaseDetail, setSfCaseDetail] = useState<any>(null);
   const [newComment, setNewComment] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadResult, setUploadResult] = useState<{ successCount: number; failedFiles: string[] } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<{ name: string; src: string; downloadUrl?: string } | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const { user, isAdmin, isManager, isSubmitter } = useUser();
   const router = useRouter();
@@ -191,6 +200,122 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       console.error("[Comments] Error posting comment:", error);
     } finally {
       setIsSubmittingComment(false);
+    }
+  }
+
+  function closeUploadModal() {
+    setIsUploadModalOpen(false);
+    setSelectedFiles([]);
+    setUploadResult(null);
+  }
+
+  function handleAttachmentFileSelect(e: ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const pickedFiles = Array.from(files);
+    console.log("[Attachments] Selected files:", pickedFiles.map((file) => file.name));
+
+    setUploadResult(null);
+    setSelectedFiles((prev) => [...prev, ...pickedFiles]);
+    e.target.value = "";
+  }
+
+  function removeSelectedAttachment(indexToRemove: number) {
+    setSelectedFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setUploadResult(null);
+  }
+
+  function openAttachmentPreview(attachment: any, index: number) {
+    const previewUrl = attachment.previewUrl;
+    const attachmentName = attachment.name || attachment.fileName || `Attachment ${index + 1}`;
+    const downloadUrl = attachment.downloadUrl || attachment.url;
+
+    if (!previewUrl) {
+      setPreviewAttachment({ name: attachmentName, src: "", downloadUrl });
+      setPreviewError("Preview URL tidak tersedia untuk file ini.");
+      setIsPreviewLoading(false);
+      return;
+    }
+
+    setPreviewError(null);
+    setIsPreviewLoading(true);
+    setPreviewAttachment({
+      name: attachmentName,
+      src: previewUrl,
+      downloadUrl,
+    });
+  }
+
+  function closeAttachmentPreview() {
+    setPreviewAttachment(null);
+    setPreviewError(null);
+    setIsPreviewLoading(false);
+  }
+
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        resolve(base64.split(",")[1] || "");
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  }
+
+  // Handle file upload
+  async function handleFileUpload() {
+    if (selectedFiles.length === 0) return;
+
+    if (!caseData?.case_sf_id) {
+      setUploadResult({
+        successCount: 0,
+        failedFiles: selectedFiles.map((file) => file.name),
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const images = await Promise.all(
+        selectedFiles.map(async (file) => ({
+          fileName: file.name,
+          base64Data: await fileToBase64(file),
+        }))
+      );
+
+      const res = await fetch("/api/salesforce/case/attachments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: caseData.case_sf_id,
+          images,
+        }),
+      });
+
+      if (res.ok) {
+        setUploadResult({
+          successCount: selectedFiles.length,
+          failedFiles: [],
+        });
+        setSelectedFiles([]);
+        fetchAttachmentsData(caseData.case_sf_id);
+      } else {
+        setUploadResult({
+          successCount: 0,
+          failedFiles: selectedFiles.map((file) => file.name),
+        });
+      }
+    } catch (error) {
+      console.error("[Attachments] Error uploading files:", error);
+      setUploadResult({
+        successCount: 0,
+        failedFiles: selectedFiles.map((file) => file.name),
+      });
+    } finally {
+      setIsUploading(false);
     }
   }
 
@@ -668,7 +793,21 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
           {activeTab === "Attachments" && (
             <div className="space-y-6">
-              <h2 className="text-lg font-bold text-slate-800">Attachments</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-800">Attachments</h2>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-white shadow-sm"
+                  onClick={() => {
+                    setUploadResult(null);
+                    setSelectedFiles([]);
+                    setIsUploadModalOpen(true);
+                  }}
+                >
+                  <PlusCircle className="w-4 h-4 mr-2" /> Upload File
+                </Button>
+              </div>
               
               {isLoadingAttachments ? (
                 <div className="flex items-center justify-center py-8">
@@ -677,7 +816,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               ) : attachmentsData.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {attachmentsData.map((attachment: any, index: number) => (
-                    <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer">
+                    <div
+                      key={index}
+                      className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 hover:shadow-md transition-shadow group cursor-pointer"
+                      onClick={() => openAttachmentPreview(attachment, index)}
+                    >
                       <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
                         <FileText className="w-6 h-6" />
                       </div>
@@ -686,12 +829,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                         <div className="text-xs text-slate-500 mt-1">{attachment.type || attachment.fileType || 'File'}</div>
                       </div>
                       <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-md" 
+                        <button
+                          className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-md"
                           title="Download"
-                          onClick={() => {
-                            if (attachment.url) {
-                              window.open(attachment.url, '_blank');
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const directDownloadUrl = attachment.downloadUrl || attachment.url;
+                            if (directDownloadUrl) {
+                              window.open(directDownloadUrl, "_blank");
                             }
                           }}
                         >
@@ -711,6 +856,167 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
         </div>
       </div>
+
+      {/* Attachment Preview Modal */}
+      {previewAttachment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800 truncate">{previewAttachment.name}</h3>
+              <button
+                onClick={closeAttachmentPreview}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 bg-slate-50 min-h-[420px] flex items-center justify-center relative">
+              {previewAttachment.src ? (
+                <div className="w-full h-full flex items-center justify-center relative">
+                  {isPreviewLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80">
+                      <div className="text-slate-600 text-sm font-medium">Loading preview...</div>
+                    </div>
+                  )}
+                  <img
+                    src={previewAttachment.src}
+                    alt={previewAttachment.name}
+                    className="max-h-[65vh] max-w-full object-contain rounded-lg"
+                    onLoad={() => {
+                      setIsPreviewLoading(false);
+                      setPreviewError(null);
+                    }}
+                    onError={() => {
+                      setIsPreviewLoading(false);
+                      setPreviewError("Preview tidak bisa ditampilkan untuk file ini.");
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="text-slate-500 text-sm font-medium">Preview URL tidak tersedia.</div>
+              )}
+
+              {previewError && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-xs text-amber-700">
+                  {previewError}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-white flex justify-end gap-3 border-t border-slate-100">
+              <Button variant="outline" onClick={closeAttachmentPreview} className="bg-white border-slate-200 text-slate-700">
+                Close
+              </Button>
+              {previewAttachment.downloadUrl && (
+                <Button
+                  onClick={() => window.open(previewAttachment.downloadUrl, "_blank")}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Download
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Modal */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Upload Attachment</h3>
+              <button
+                onClick={closeUploadModal}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
+              {uploadResult && (
+                <div className={`rounded-lg px-4 py-3 text-sm border ${uploadResult.failedFiles.length === 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
+                  <p className="font-semibold">{uploadResult.successCount} file berhasil diupload.</p>
+                  {uploadResult.failedFiles.length > 0 && (
+                    <p className="mt-1">{uploadResult.failedFiles.length} file gagal dan tetap ada di daftar untuk dicoba lagi.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700">Attachments</label>
+                <p className="text-xs font-medium text-slate-500">
+                  {selectedFiles.length > 0 ? `Selected files (${selectedFiles.length})` : "No files selected yet"}
+                </p>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">
+                  <Upload className="w-8 h-8 text-slate-400 mb-3 group-hover:text-amber-500 transition-colors" />
+                  <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                  <p className="text-xs text-slate-500 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleAttachmentFileSelect}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {selectedFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 bg-slate-200 rounded flex items-center justify-center flex-shrink-0">
+                          <Upload className="w-4 h-4 text-slate-500" />
+                        </div>
+                        <span className="text-xs text-slate-700 truncate max-w-[300px]">{file.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeSelectedAttachment(index)}
+                        className="text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 rounded-b-2xl border-t border-slate-100">
+              <Button
+                variant="outline"
+                onClick={closeUploadModal}
+                className="bg-white border-slate-200 text-slate-700"
+                disabled={isUploading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleFileUpload}
+                disabled={selectedFiles.length === 0 || isUploading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Uploading...
+                  </span>
+                ) : (
+                  `Upload ${selectedFiles.length > 0 ? `(${selectedFiles.length})` : ""}`
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
