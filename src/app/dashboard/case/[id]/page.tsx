@@ -22,10 +22,12 @@ import {
   Download,
   Send,
   Upload,
-  X
+  X,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -47,7 +49,15 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadResult, setUploadResult] = useState<{ successCount: number; failedFiles: string[] } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [previewAttachment, setPreviewAttachment] = useState<{ name: string; src: string; downloadUrl?: string } | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<{
+    name: string;
+    src: string;
+    mode: "image" | "pdf" | "csv" | "excel" | "unsupported";
+    downloadUrl?: string;
+    fileType?: string;
+    versionData?: string;
+    tableRows?: string[][];
+  } | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -226,24 +236,247 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     setUploadResult(null);
   }
 
+  function normalizeFileType(fileType?: string, fileName?: string) {
+    const directType = (fileType || "").trim().toUpperCase();
+    const extension = fileName?.split(".").pop()?.trim().toUpperCase() || "";
+
+    const mappedTypes: Record<string, string> = {
+      EXCEL_X: "XLSX",
+      EXCEL_XLSX: "XLSX",
+      EXCEL: "XLS",
+      IMAGE_JPG: "JPG",
+      IMAGE_JPEG: "JPEG",
+      IMAGE_PNG: "PNG",
+    };
+
+    const normalizedDirectType = mappedTypes[directType] || directType;
+    const knownTypes = new Set(["PDF", "PNG", "JPG", "JPEG", "GIF", "WEBP", "CSV", "XLS", "XLSX"]);
+
+    if (knownTypes.has(normalizedDirectType)) return normalizedDirectType;
+    if (extension) return extension;
+    return normalizedDirectType;
+  }
+
+  function resolveMimeType(fileType?: string, fileName?: string) {
+    const normalized = normalizeFileType(fileType, fileName);
+
+    if (normalized === "PDF") return "application/pdf";
+    if (normalized === "PNG") return "image/png";
+    if (normalized === "JPG" || normalized === "JPEG") return "image/jpeg";
+    if (normalized === "GIF") return "image/gif";
+    if (normalized === "WEBP") return "image/webp";
+    if (normalized === "CSV") return "text/csv";
+    if (normalized === "XLS") return "application/vnd.ms-excel";
+    if (normalized === "XLSX") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    return "application/octet-stream";
+  }
+
+  function buildBase64DataUrl(base64: string, mimeType: string) {
+    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    return `data:${mimeType};base64,${cleanedBase64}`;
+  }
+
+  function decodeBase64ToText(base64: string) {
+    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    const binary = atob(cleanedBase64);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  function parseCsvLine(line: string) {
+    const fields: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (char === "," && !inQuotes) {
+        fields.push(current.trim());
+        current = "";
+        continue;
+      }
+
+      current += char;
+    }
+
+    fields.push(current.trim());
+    return fields;
+  }
+
+  function normalizeTableRows(rows: unknown[][]) {
+    return rows
+      .map((row) => row.map((cell) => String(cell ?? "").trim()))
+      .filter((row) => row.some((cell) => cell.length > 0));
+  }
+
+  function parseCsvBase64(base64: string) {
+    const text = decodeBase64ToText(base64);
+    const rows = text
+      .replace(/^﻿/, "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => parseCsvLine(line));
+
+    return normalizeTableRows(rows);
+  }
+
+  function parseExcelBase64(base64: string) {
+    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    const binary = atob(cleanedBase64);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const workbook = XLSX.read(bytes, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+
+    if (!firstSheetName) return [];
+
+    const firstSheet = workbook.Sheets[firstSheetName];
+    const sheetRows = XLSX.utils.sheet_to_json(firstSheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+      blankrows: false,
+    }) as unknown[][];
+
+    return normalizeTableRows(sheetRows);
+  }
+
+  function triggerBase64Download(base64: string, fileName: string, mimeType: string) {
+    const anchor = document.createElement("a");
+    anchor.href = buildBase64DataUrl(base64, mimeType);
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  }
+
+  function handleAttachmentDownload(attachment: any, index: number) {
+    const fileName = attachment.name || attachment.fileName || `Attachment ${index + 1}`;
+    const mimeType = resolveMimeType(attachment.fileType || attachment.type, fileName);
+    const versionData = attachment.versionData;
+
+    if (versionData) {
+      triggerBase64Download(versionData, fileName, mimeType);
+      return;
+    }
+
+    const directDownloadUrl = attachment.downloadUrl || attachment.url;
+    if (directDownloadUrl) {
+      window.open(directDownloadUrl, "_blank");
+    }
+  }
+
   function openAttachmentPreview(attachment: any, index: number) {
     const previewUrl = attachment.previewUrl;
     const attachmentName = attachment.name || attachment.fileName || `Attachment ${index + 1}`;
     const downloadUrl = attachment.downloadUrl || attachment.url;
+    const versionData = attachment.versionData;
+    const normalizedType = normalizeFileType(attachment.fileType || attachment.type, attachmentName);
+    const mimeType = resolveMimeType(attachment.fileType || attachment.type, attachmentName);
+    const isImage = ["PNG", "JPG", "JPEG", "GIF", "WEBP"].includes(normalizedType);
+    const isPdf = normalizedType === "PDF";
+    const isCsv = normalizedType === "CSV";
+    const isExcel = ["XLS", "XLSX"].includes(normalizedType);
 
-    if (!previewUrl) {
-      setPreviewAttachment({ name: attachmentName, src: "", downloadUrl });
-      setPreviewError("Preview URL tidak tersedia untuk file ini.");
+    if (isCsv || isExcel) {
+      if (!versionData) {
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: "unsupported",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+        });
+        setPreviewError(`Data ${normalizedType} tidak tersedia untuk preview. Silakan download file.`);
+        setIsPreviewLoading(false);
+        return;
+      }
+
+      try {
+        const rows = isCsv ? parseCsvBase64(versionData) : parseExcelBase64(versionData);
+
+        if (rows.length === 0) {
+          setPreviewAttachment({
+            name: attachmentName,
+            src: "",
+            mode: "unsupported",
+            downloadUrl,
+            fileType: normalizedType,
+            versionData,
+          });
+          setPreviewError(`File ${normalizedType} kosong atau tidak bisa dibaca.`);
+          setIsPreviewLoading(false);
+          return;
+        }
+
+        setPreviewError(null);
+        setIsPreviewLoading(false);
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: isCsv ? "csv" : "excel",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+          tableRows: rows,
+        });
+        return;
+      } catch {
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: "unsupported",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+        });
+        setPreviewError(`Preview ${normalizedType} gagal diproses. Silakan download file.`);
+        setIsPreviewLoading(false);
+        return;
+      }
+    }
+
+    if (!isImage && !isPdf) {
+      setPreviewAttachment({
+        name: attachmentName,
+        src: "",
+        mode: "unsupported",
+        downloadUrl,
+        fileType: normalizedType,
+        versionData,
+      });
+      setPreviewError("Preview belum tersedia untuk tipe file ini. Silakan download file.");
       setIsPreviewLoading(false);
       return;
     }
 
-    setPreviewError(null);
-    setIsPreviewLoading(true);
+    const source = versionData
+      ? buildBase64DataUrl(versionData, mimeType)
+      : (previewUrl || "");
+
+    setPreviewError(source ? null : "Preview URL tidak tersedia untuk file ini.");
+    setIsPreviewLoading(Boolean(source));
     setPreviewAttachment({
       name: attachmentName,
-      src: previewUrl,
+      src: source,
+      mode: isPdf ? "pdf" : "image",
       downloadUrl,
+      fileType: normalizedType,
+      versionData,
     });
   }
 
@@ -418,13 +651,45 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     fetchCaseDetail();
   }, [caseId, user, isManager, isSubmitter]);
 
-  const stages = [
-    { id: "new", label: "New", status: caseData?.status?.toLowerCase() === "new" ? "current" : "completed" },
-    { id: "open", label: "Open", status: caseData?.status?.toLowerCase() === "open" ? "current" : ["new"].includes(caseData?.status?.toLowerCase()) ? "upcoming" : "completed" },
-    { id: "in-progress", label: "In Progress", status: caseData?.status?.toLowerCase() === "in progress" ? "current" : ["new", "open"].includes(caseData?.status?.toLowerCase()) ? "upcoming" : "completed" },
-    { id: "solved", label: "Solved", status: caseData?.status?.toLowerCase() === "solved" ? "current" : ["new", "open", "in progress"].includes(caseData?.status?.toLowerCase()) ? "upcoming" : "completed" },
-    { id: "closed", label: "Closed", status: caseData?.status?.toLowerCase() === "closed" ? "current" : "upcoming" },
+  function normalizeCaseStatus(value?: string) {
+    const status = (value || "").trim().toLowerCase();
+    const compact = status.replace(/[\s_-]+/g, "");
+
+    if (compact === "reopen") return "re-open";
+    if (compact === "inprogress") return "in progress";
+    if (compact === "waitingreply") return "waiting reply";
+    if (compact === "cancelled") return "canceled";
+
+    return status.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  const stageOrder = [
+    { id: "new", label: "New" },
+    { id: "open", label: "Open" },
+    { id: "waiting reply", label: "Waiting Reply" },
+    { id: "escalated", label: "Escalated" },
+    { id: "in progress", label: "In Progress" },
+    { id: "solved", label: "Solved" },
+    { id: "closed", label: "Closed" },
+    { id: "merged", label: "Merged" },
+    { id: "canceled", label: "Canceled" },
+    { id: "re-open", label: "Re-Open" },
   ];
+
+  const normalizedCaseStatus = normalizeCaseStatus(sfCaseDetail?.status || caseData?.status);
+  const currentStageIndex = stageOrder.findIndex((stage) => stage.id === normalizedCaseStatus);
+
+  const stages = stageOrder.map((stage, index) => {
+    if (index === currentStageIndex) {
+      return { ...stage, status: "current" as const };
+    }
+
+    if (currentStageIndex !== -1 && index < currentStageIndex) {
+      return { ...stage, status: "completed" as const };
+    }
+
+    return { ...stage, status: "upcoming" as const };
+  });
 
   if (isLoading) {
     return (
@@ -597,19 +862,18 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
           {activeTab === "Activity" && (
             <div className="space-y-6">
-              {/* Stage Status - Hidden */}
-              {/* <div className="flex gap-1 w-full">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 w-full">
                 {stages.map((stage) => {
                   let bgClass = "";
                   let textClass = "";
                   let icon = null;
 
                   if (stage.status === "completed") {
-                    bgClass = "bg-[#e5f7e6]"; // light green
+                    bgClass = "bg-[#e5f7e6]";
                     textClass = "text-[#4caf50]";
                     icon = <Check className="w-3.5 h-3.5 mr-1.5" strokeWidth={3} />;
                   } else if (stage.status === "current") {
-                    bgClass = "bg-[#5cb85c]"; // solid green
+                    bgClass = "bg-[#5cb85c]";
                     textClass = "text-white";
                   } else {
                     bgClass = "bg-slate-50";
@@ -617,16 +881,16 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   }
 
                   return (
-                    <div 
+                    <div
                       key={stage.id}
-                      className={`flex-1 flex items-center justify-center py-2.5 text-xs font-bold rounded-sm transition-colors cursor-pointer ${bgClass} ${textClass}`}
+                      className={`flex items-center justify-center py-2.5 px-2 text-xs font-bold rounded-sm transition-colors ${bgClass} ${textClass}`}
                     >
                       {icon}
-                      {stage.label}
+                      <span className="text-center leading-tight">{stage.label}</span>
                     </div>
                   );
                 })}
-              </div> */}
+              </div>
 
               {/* History Title */}
               <h2 className="text-xl font-bold text-slate-800 mt-2">History</h2>
@@ -834,10 +1098,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                           title="Download"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const directDownloadUrl = attachment.downloadUrl || attachment.url;
-                            if (directDownloadUrl) {
-                              window.open(directDownloadUrl, "_blank");
-                            }
+                            handleAttachmentDownload(attachment, index);
                           }}
                         >
                           <Download className="w-4 h-4" />
@@ -872,7 +1133,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             <div className="p-6 bg-slate-50 min-h-[420px] flex items-center justify-center relative">
-              {previewAttachment.src ? (
+              {previewAttachment.mode === "image" && previewAttachment.src && (
                 <div className="w-full h-full flex items-center justify-center relative">
                   {isPreviewLoading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80">
@@ -893,7 +1154,62 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                     }}
                   />
                 </div>
-              ) : (
+              )}
+
+              {previewAttachment.mode === "pdf" && previewAttachment.src && (
+                <div className="w-full h-[65vh] relative">
+                  {isPreviewLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 z-10">
+                      <div className="text-slate-600 text-sm font-medium">Loading preview...</div>
+                    </div>
+                  )}
+                  <iframe
+                    src={previewAttachment.src}
+                    className="w-full h-full rounded-lg border border-slate-200 bg-white"
+                    title={previewAttachment.name}
+                    onLoad={() => {
+                      setIsPreviewLoading(false);
+                      setPreviewError(null);
+                    }}
+                  />
+                </div>
+              )}
+
+              {["csv", "excel"].includes(previewAttachment.mode) && previewAttachment.tableRows && (
+                <div className="w-full max-h-[65vh] overflow-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="w-full text-xs text-left">
+                    <tbody>
+                      {previewAttachment.tableRows.slice(0, 50).map((row, rowIndex) => (
+                        <tr key={rowIndex} className={`border-b border-slate-100 ${rowIndex === 0 ? "bg-slate-100" : ""}`}>
+                          {row.map((cell, cellIndex) => (
+                            rowIndex === 0 ? (
+                              <th
+                                key={cellIndex}
+                                scope="col"
+                                className="px-3 py-2 text-slate-800 font-semibold align-top whitespace-pre-wrap"
+                              >
+                                {cell}
+                              </th>
+                            ) : (
+                              <td key={cellIndex} className="px-3 py-2 text-slate-700 align-top whitespace-pre-wrap">
+                                {cell}
+                              </td>
+                            )
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {previewAttachment.mode === "unsupported" && (
+                <div className="text-slate-500 text-sm font-medium text-center">
+                  Preview belum tersedia untuk tipe {previewAttachment.fileType || "file ini"}. Silakan download file.
+                </div>
+              )}
+
+              {!previewAttachment.src && !["unsupported", "csv", "excel"].includes(previewAttachment.mode) && (
                 <div className="text-slate-500 text-sm font-medium">Preview URL tidak tersedia.</div>
               )}
 
@@ -908,9 +1224,9 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               <Button variant="outline" onClick={closeAttachmentPreview} className="bg-white border-slate-200 text-slate-700">
                 Close
               </Button>
-              {previewAttachment.downloadUrl && (
+              {(previewAttachment.versionData || previewAttachment.downloadUrl) && (
                 <Button
-                  onClick={() => window.open(previewAttachment.downloadUrl, "_blank")}
+                  onClick={() => handleAttachmentDownload(previewAttachment, 0)}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   Download

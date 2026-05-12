@@ -64,14 +64,17 @@ function useCounterAnimation(target: number, duration: number = 1000) {
   return count;
 }
 
-// Mock data
 const caseStats = [
-  { title: "New", count: 12, trend: "+7.4%", isPositive: true, icon: Briefcase },
-  { title: "Open", count: 24, trend: "+2%", isPositive: true, icon: Clock },
-  { title: "In Progress", count: 18, trend: "+3.5%", isPositive: true, icon: ArrowUpRight },
-  { title: "Escalated", count: 4, trend: "-1.2%", isPositive: false, icon: ShieldAlert },
-  { title: "Solved", count: 45, trend: "+12%", isPositive: true, icon: CheckCircle2 },
-  { title: "Closed", count: 112, trend: "+4.1%", isPositive: true, icon: AlertCircle },
+  { title: "New", icon: Briefcase },
+  { title: "Open", icon: Clock },
+  { title: "Waiting Reply", icon: Clock },
+  { title: "Escalated", icon: ShieldAlert },
+  { title: "In Progress", icon: ArrowUpRight },
+  { title: "Solved", icon: CheckCircle2 },
+  { title: "Closed", icon: AlertCircle },
+  { title: "Merged", icon: ChevronRight },
+  { title: "Canceled", icon: X },
+  { title: "Re-Open", icon: ArrowUpRight },
 ];
 
 // Note: mockCases removed, data fetched from Supabase
@@ -80,10 +83,14 @@ const ITEMS_PER_PAGE = 10;
 const statusStyles: Record<string, string> = {
   "New": "bg-blue-100 text-blue-700",
   "Open": "bg-amber-100 text-amber-700",
-  "In progress": "bg-indigo-100 text-indigo-700",
+  "Waiting Reply": "bg-cyan-100 text-cyan-700",
   "Escalated": "bg-rose-100 text-rose-700",
+  "In Progress": "bg-indigo-100 text-indigo-700",
   "Solved": "bg-emerald-100 text-emerald-700",
   "Closed": "bg-slate-100 text-slate-700",
+  "Merged": "bg-violet-100 text-violet-700",
+  "Canceled": "bg-red-100 text-red-700",
+  "Re-Open": "bg-orange-100 text-orange-700",
 };
 
 type DateFilter = "All" | "This week" | "This month" | "This year";
@@ -93,6 +100,7 @@ type CaseRow = {
   realId: string;
   subject: string;
   status: string;
+  normalizedStatus: string;
   date: string;
   rawDate: Date;
   client: {
@@ -101,6 +109,28 @@ type CaseRow = {
   };
   contactSfId: string;
 };
+
+function normalizeCaseStatus(value?: string) {
+  const status = (value || "").trim().toLowerCase();
+  const compact = status.replace(/[\s_-]+/g, "");
+
+  if (compact === "reopen") return "Re-Open";
+  if (compact === "inprogress") return "In Progress";
+  if (compact === "waitingreply") return "Waiting Reply";
+  if (compact === "cancelled") return "Canceled";
+  if (compact === "new") return "New";
+  if (compact === "open") return "Open";
+  if (compact === "escalated") return "Escalated";
+  if (compact === "solved") return "Solved";
+  if (compact === "closed") return "Closed";
+  if (compact === "merged") return "Merged";
+
+  return status
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
 
 export default function CaseDashboardPage() {
   const router = useRouter();
@@ -214,16 +244,18 @@ export default function CaseDashboardPage() {
         const mappedCases = data.map((item: any) => {
           const contact = Array.isArray(item.contact) ? item.contact[0] : item.contact;
           const account = contact && Array.isArray(contact.account) ? contact.account[0] : contact?.account;
+          const normalizedStatus = normalizeCaseStatus(item.status);
           return {
             id: item.caseNumber,
             realId: item.id,
             subject: item.subject,
             status: item.status,
+            normalizedStatus,
             date: new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
             rawDate: new Date(item.created_at),
-            client: { 
-              name: contact?.fullName || "Unknown Client", 
-              email: account?.email || "N/A" 
+            client: {
+              name: contact?.fullName || "Unknown Client",
+              email: account?.email || "N/A"
             },
             contactSfId: item.contact_sf_id || "N/A"
           };
@@ -354,7 +386,7 @@ export default function CaseDashboardPage() {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
 
     return dateFilteredCases.filter((caseItem) => {
-      const matchesStatus = statusFilter === "All" || caseItem.status === statusFilter;
+      const matchesStatus = statusFilter === "All" || caseItem.normalizedStatus === statusFilter;
       const matchesContact = contactFilter === "All" || caseItem.contactSfId === contactFilter;
 
       if (!matchesStatus || !matchesContact) {
@@ -376,7 +408,7 @@ export default function CaseDashboardPage() {
       caseStats.map((stat) => ({
         ...stat,
         count: dateFilteredCases.filter((caseItem) =>
-          caseItem.status.toLowerCase() === stat.title.toLowerCase()
+          caseItem.normalizedStatus === stat.title
         ).length,
       })),
     [dateFilteredCases]
@@ -389,7 +421,7 @@ export default function CaseDashboardPage() {
     return filteredCases.slice(startIdx, startIdx + ITEMS_PER_PAGE);
   }, [effectivePage, filteredCases]);
 
-  const statusFilterOptions = ["All", ...Object.keys(statusStyles)];
+  const statusFilterOptions = ["All", ...caseStats.map((item) => item.title)];
 
   return (
     <div className="space-y-8">
@@ -428,7 +460,7 @@ export default function CaseDashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {dynamicCaseStats.map((stat) => {
           const animatedCount = useCounterAnimation(stat.count, 800);
           return (
@@ -557,8 +589,8 @@ export default function CaseDashboardPage() {
                     </td>
                     <td className="py-4 px-4 text-slate-600">{c.date}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[c.status] || "bg-slate-100 text-slate-700"}`}>
-                        {c.status}
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[c.normalizedStatus] || "bg-slate-100 text-slate-700"}`}>
+                        {c.normalizedStatus}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-right">
