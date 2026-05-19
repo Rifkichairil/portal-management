@@ -23,9 +23,12 @@ export async function GET(request: NextRequest) {
   // Fetch contact info for this user (for managers/submitters)
   const { data: contactData } = await supabase
     .from('contact')
-    .select('contact_sf_id, account_sf_id')
+    .select('contact_sf_id, account_id, account_sf_id, account:account_id(account_sf_id)')
     .eq('user_id', user.id)
     .maybeSingle();
+
+  const account = Array.isArray(contactData?.account) ? contactData?.account[0] : contactData?.account;
+  const resolvedAccountSfId = contactData?.account_sf_id || account?.account_sf_id || null;
 
   return NextResponse.json({
     user: {
@@ -34,7 +37,8 @@ export async function GET(request: NextRequest) {
       username: user.username,
       role: user.role,
       contact_sf_id: contactData?.contact_sf_id || null,
-      account_sf_id: contactData?.account_sf_id || null,
+      account_id: contactData?.account_id || null,
+      account_sf_id: resolvedAccountSfId,
     },
   });
 }

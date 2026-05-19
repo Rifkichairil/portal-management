@@ -573,7 +573,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           contact:contact_sf_id (
             fullName,
             phone,
-            account:account_id (name, account_sf_id),
+            account:account_id (id, name, account_sf_id),
             users:user_id (email)
           )
         `)
@@ -596,7 +596,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           contact:contact_sf_id (
             fullName,
             phone,
-            account:account_id (name, account_sf_id),
+            account:account_id (id, name, account_sf_id),
             users:user_id (email)
           )
         `)
@@ -620,8 +620,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           setIsLoading(false);
           return;
         }
+        // Manager without account mapping: no access
+        if (isManager && !user?.account_id) {
+          setIsUnauthorized(true);
+          setIsLoading(false);
+          return;
+        }
         // Manager: can only view cases from contacts under their account
-        if (isManager && user?.account_sf_id && account?.account_sf_id !== user.account_sf_id) {
+        if (isManager && user?.account_id && account?.id !== user.account_id) {
           setIsUnauthorized(true);
           setIsLoading(false);
           return;

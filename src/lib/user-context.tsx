@@ -8,6 +8,7 @@ export interface CurrentUser {
   username: string;
   role: "admin" | "manager" | "submittercase" | string;
   contact_sf_id: string | null;
+  account_id: string | null;
   account_sf_id: string | null;
 }
 

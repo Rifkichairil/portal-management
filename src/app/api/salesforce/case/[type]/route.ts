@@ -187,7 +187,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { commentBody } = body;
+    const { commentBody, commentBodyRichtext } = body;
 
     if (!commentBody) {
       return NextResponse.json({ error: "Comment body is required" }, { status: 400 });
@@ -244,7 +244,7 @@ export async function POST(
             Authorization: `Bearer ${access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ commentBody }),
+          body: JSON.stringify({ commentBody, commentBodyRichtext }),
         }
       );
 

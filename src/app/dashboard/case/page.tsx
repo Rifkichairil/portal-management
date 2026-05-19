@@ -168,8 +168,11 @@ export default function CaseDashboardPage() {
         .select('contact_sf_id, fullName');
 
       // Manager: only see contacts from their account
-      if (isManager && user.account_sf_id) {
-        query = query.eq('account_sf_id', user.account_sf_id);
+      if (isManager && user.account_id) {
+        query = query.eq('account_id', user.account_id);
+      } else if (isManager && !user.account_id) {
+        setContacts([]);
+        return;
       }
       // Admin: see all contacts (no filter)
 
@@ -213,11 +216,11 @@ export default function CaseDashboardPage() {
         // No filter needed, admin sees all cases
       }
       // Manager: see all cases from contacts under the same account
-      else if (isManager && user.account_sf_id) {
+      else if (isManager && user.account_id) {
         const { data: accountContacts } = await supabase
           .from('contact')
           .select('contact_sf_id')
-          .eq('account_sf_id', user.account_sf_id);
+          .eq('account_id', user.account_id);
         const sfIds = (accountContacts || []).map((c: any) => c.contact_sf_id).filter(Boolean);
         if (sfIds.length > 0) {
           query = (query as any).in('contact_sf_id', sfIds);
@@ -226,6 +229,12 @@ export default function CaseDashboardPage() {
           setIsLoading(false);
           return;
         }
+      }
+      // Manager without account mapping: see no cases
+      else if (isManager && !user.account_id) {
+        setCases([]);
+        setIsLoading(false);
+        return;
       }
       // Submitter: only see their own cases (cannot see other submitters' cases)
       else if (isSubmitter && user.contact_sf_id) {
