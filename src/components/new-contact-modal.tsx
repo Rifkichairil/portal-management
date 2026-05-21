@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/lib/user-context";
 import { toast } from "react-hot-toast";
 
 interface Account {
@@ -21,6 +22,7 @@ interface NewContactModalProps {
 }
 
 export default function NewContactModal({ isOpen, onClose, onSuccess }: NewContactModalProps) {
+  const { user, isManager } = useUser();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -34,6 +36,13 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+
+  // Auto-fill account for managers
+  useEffect(() => {
+    if (isManager && user?.account_id) {
+      setAccountId(user.account_id);
+    }
+  }, [isManager, user, isOpen]);
 
   useEffect(() => {
     async function fetchAccounts() {
@@ -135,7 +144,7 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
     setPhone("");
     setTitle("");
     setDepartment("");
-    setAccountId("");
+    setAccountId(isManager && user?.account_id ? user.account_id : "");
     setUsername("");
     setEmail("");
     setPassword("");
@@ -274,11 +283,11 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
                   id="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isManager}
                   className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none disabled:opacity-50"
                 >
                   <option value="submittercase">Submitter Case</option>
-                  <option value="manager">Manager</option>
+                  {!isManager && <option value="manager">Manager</option>}
                 </select>
               </div>
 
@@ -290,7 +299,7 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
                     id="account"
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    disabled={isSubmitting || isLoadingAccounts}
+                    disabled={isSubmitting || isLoadingAccounts || isManager}
                     className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm text-slate-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none disabled:opacity-50"
                   >
                     <option value="">Select an account</option>

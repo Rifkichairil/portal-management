@@ -57,8 +57,8 @@ export default function ContactDashboardPage() {
         `);
 
       // Manager: only see contacts within their account
-      if (isManager && user?.account_sf_id) {
-        query = (query as any).eq('account.account_sf_id', user.account_sf_id);
+      if (isManager && user?.account_id) {
+        query = query.eq('account_id', user.account_id);
       }
 
       const { data, error } = await query;
@@ -134,7 +134,7 @@ export default function ContactDashboardPage() {
           <p className="text-sm text-slate-500 mt-1">Manage and view all registered contacts and their details.</p>
         </div>
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {(isAdmin || isManager) && (
             <Button 
               className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
               onClick={() => setIsNewContactModalOpen(true)}

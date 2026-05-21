@@ -245,6 +245,9 @@ export default function CaseDashboardPage() {
         return;
       }
 
+      // Sort by newest first
+      query = query.order('created_at', { ascending: false });
+
       const { data, error } = await query;
 
       if (error) {
