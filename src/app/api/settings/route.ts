@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabaseAdmin
     .from("settings")
-    .select("id, client_id, client_secret, base_url, salesforce_enabled")
+    .select("id, client_id, client_secret, base_url, salesforce_enabled, agent_force_client_id, agent_force_client_secret")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { client_id, client_secret, base_url, salesforce_enabled } = body;
+  const { client_id, client_secret, base_url, salesforce_enabled, agent_force_client_id, agent_force_client_secret } = body;
 
   const wantsEnable = salesforce_enabled === true;
   const hasClientId =
@@ -89,19 +89,21 @@ export async function POST(request: Request) {
     if (client_id !== undefined) updatePayload.client_id = client_id;
     if (client_secret !== undefined) updatePayload.client_secret = client_secret;
     if (base_url !== undefined) updatePayload.base_url = base_url;
+    if (agent_force_client_id !== undefined) updatePayload.agent_force_client_id = agent_force_client_id;
+    if (agent_force_client_secret !== undefined) updatePayload.agent_force_client_secret = agent_force_client_secret;
 
     result = await supabaseAdmin
       .from("settings")
       .update(updatePayload)
       .eq("id", existing.id)
-      .select("id, client_id, client_secret, base_url, salesforce_enabled")
+      .select("id, client_id, client_secret, base_url, salesforce_enabled, agent_force_client_id, agent_force_client_secret")
       .single();
   } else {
     // Insert new
     result = await supabaseAdmin
       .from("settings")
-      .insert({ client_id, client_secret, base_url, salesforce_enabled })
-      .select("id, client_id, client_secret, base_url, salesforce_enabled")
+      .insert({ client_id, client_secret, base_url, salesforce_enabled, agent_force_client_id, agent_force_client_secret })
+      .select("id, client_id, client_secret, base_url, salesforce_enabled, agent_force_client_id, agent_force_client_secret")
       .single();
   }
 

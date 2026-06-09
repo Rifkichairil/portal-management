@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Key, Hash, Cloud, CloudOff, Loader2, Globe } from "lucide-react";
+import { Save, Key, Hash, Cloud, CloudOff, Loader2, Globe, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/lib/user-context";
@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [clientSecret, setClientSecret] = useState("");
   const [baseUrl, setBaseUrl] = useState("https://saasten--ranggersbx.sandbox.my.salesforce.com/services/oauth2/token");
   const [salesforceEnabled, setSalesforceEnabled] = useState(false);
+  const [agentForceClientId, setAgentForceClientId] = useState("");
+  const [agentForceClientSecret, setAgentForceClientSecret] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
@@ -38,6 +40,8 @@ export default function SettingsPage() {
             setClientSecret(json.settings.client_secret || "");
             setBaseUrl(json.settings.base_url || "https://saasten--ranggersbx.sandbox.my.salesforce.com/services/oauth2/token");
             setSalesforceEnabled(json.settings.salesforce_enabled ?? false);
+            setAgentForceClientId(json.settings.agent_force_client_id || "");
+            setAgentForceClientSecret(json.settings.agent_force_client_secret || "");
             setSettingsExist(true);
           } else {
             setSettingsExist(false);
@@ -74,6 +78,8 @@ export default function SettingsPage() {
           client_secret: clientSecret,
           base_url: baseUrl,
           salesforce_enabled: salesforceEnabled,
+          agent_force_client_id: agentForceClientId,
+          agent_force_client_secret: agentForceClientSecret,
         }),
       });
       if (res.ok) {
@@ -205,52 +211,97 @@ export default function SettingsPage() {
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-800">API Credentials</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Configure your Salesforce API Client ID and Secret to allow data synchronization.
+                Configure your Salesforce and Agent Force API credentials.
               </p>
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="space-y-2 max-w-xl">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-slate-400" />
-                  Client ID
-                </label>
-                <Input
-                  placeholder="Enter your Client ID"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
-                />
-                <p className="text-xs text-slate-500">The public identifier for your application.</p>
+              {/* Salesforce Credentials */}
+              <div className="pb-6 border-b border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <Cloud className="w-4 h-4 text-blue-500" />
+                  Salesforce API
+                </h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                        <Hash className="w-4 h-4 text-slate-400" />
+                        Client ID
+                      </label>
+                      <Input
+                        placeholder="Enter your Client ID"
+                        value={clientId}
+                        onChange={(e) => setClientId(e.target.value)}
+                        className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                        <Key className="w-4 h-4 text-slate-400" />
+                        Client Secret
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder="Enter your Client Secret"
+                        value={clientSecret}
+                        onChange={(e) => setClientSecret(e.target.value)}
+                        className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-w-xl">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-slate-400" />
+                      Base URL
+                    </label>
+                    <Input
+                      placeholder="https://saasten--ranggersbx.sandbox.my.salesforce.com"
+                      value={baseUrl}
+                      onChange={(e) => setBaseUrl(e.target.value)}
+                      className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+                    />
+                    <p className="text-xs text-slate-500">Salesforce instance URL (e.g., https://saasten--ranggersbx.sandbox.my.salesforce.com)</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2 max-w-xl">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Key className="w-4 h-4 text-slate-400" />
-                  Client Secret
-                </label>
-                <Input
-                  type="password"
-                  placeholder="Enter your Client Secret"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
-                />
-                <p className="text-xs text-slate-500">Keep this secret safe. It is used to authenticate your application.</p>
-              </div>
+              {/* Agent Force Credentials */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-500" />
+                  Agent Force API
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-slate-400" />
+                      Client ID
+                    </label>
+                    <Input
+                      placeholder="Enter your Agent Force Client ID"
+                      value={agentForceClientId}
+                      onChange={(e) => setAgentForceClientId(e.target.value)}
+                      className="bg-slate-50 border-slate-200 focus-visible:ring-purple-500"
+                    />
+                  </div>
 
-              <div className="space-y-2 max-w-xl">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-slate-400" />
-                  Base URL
-                </label>
-                <Input
-                  placeholder="https://saasten--ranggersbx.sandbox.my.salesforce.com"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  className="bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
-                />
-                <p className="text-xs text-slate-500">Salesforce instance URL (e.g., https://saasten--ranggersbx.sandbox.my.salesforce.com)</p>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                      <Key className="w-4 h-4 text-slate-400" />
+                      Client Secret
+                    </label>
+                    <Input
+                      type="password"
+                      placeholder="Enter your Agent Force Client Secret"
+                      value={agentForceClientSecret}
+                      onChange={(e) => setAgentForceClientSecret(e.target.value)}
+                      className="bg-slate-50 border-slate-200 focus-visible:ring-purple-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -270,6 +321,8 @@ export default function SettingsPage() {
                   onClick={() => {
                     setClientId("");
                     setClientSecret("");
+                    setAgentForceClientId("");
+                    setAgentForceClientSecret("");
                   }}
                 >
                   Clear

@@ -144,6 +144,13 @@ AND c.account_id IS NULL;
 -- Apply trigger to settings table
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Add Agent Force API credentials columns to settings table
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS agent_force_client_id TEXT;
+
+ALTER TABLE public.settings
+ADD COLUMN IF NOT EXISTS agent_force_client_secret TEXT;
+
 -- 6. Table: error_log
 CREATE TABLE IF NOT EXISTS public.error_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

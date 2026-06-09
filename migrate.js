@@ -12,8 +12,16 @@ const client = new Client({
 async function run() {
   await client.connect();
   console.log('Connected!');
-  const result = await client.query('ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS salesforce_enabled BOOLEAN DEFAULT FALSE;');
-  console.log('Migration successful!', result.command);
+  
+  // Add agent_force_client_id column
+  await client.query('ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS agent_force_client_id TEXT;');
+  console.log('Added agent_force_client_id column');
+  
+  // Add agent_force_client_secret column
+  await client.query('ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS agent_force_client_secret TEXT;');
+  console.log('Added agent_force_client_secret column');
+  
+  console.log('Migration successful!');
   await client.end();
 }
 

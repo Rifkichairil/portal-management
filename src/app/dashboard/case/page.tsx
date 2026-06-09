@@ -204,9 +204,11 @@ export default function CaseDashboardPage() {
           contact_sf_id,
           contact:contact_sf_id (
             fullName,
-            account:account_id (
-              name,
+            user:user_id (
               email
+            ),
+            account:account_id (
+              name
             )
           )
         `);
@@ -255,6 +257,7 @@ export default function CaseDashboardPage() {
       } else if (data) {
         const mappedCases = data.map((item: any) => {
           const contact = Array.isArray(item.contact) ? item.contact[0] : item.contact;
+          const user = contact && Array.isArray(contact.user) ? contact.user[0] : contact?.user;
           const account = contact && Array.isArray(contact.account) ? contact.account[0] : contact?.account;
           const normalizedStatus = normalizeCaseStatus(item.status);
           return {
@@ -267,7 +270,7 @@ export default function CaseDashboardPage() {
             rawDate: new Date(item.created_at),
             client: {
               name: contact?.fullName || "Unknown Client",
-              email: account?.email || "N/A"
+              email: user?.email || "N/A"
             },
             contactSfId: item.contact_sf_id || "N/A"
           };
