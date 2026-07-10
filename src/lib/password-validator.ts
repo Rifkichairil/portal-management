@@ -28,11 +28,6 @@ export function validatePassword(password: string): PasswordValidationResult {
     errors.push('Password must contain at least one number');
   }
 
-  // At least one special character
-  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    errors.push('Password must contain at least one special character');
-  }
-
   return {
     isValid: errors.length === 0,
     errors,

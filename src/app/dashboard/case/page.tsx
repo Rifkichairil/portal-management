@@ -4,9 +4,9 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { Pagination } from "@/components/ui/pagination";
-import { 
-  Search, 
-  Filter, 
+import {
+  Search,
+  Filter,
   CalendarDays,
   Plus,
   Briefcase,
@@ -19,11 +19,13 @@ import {
   Upload,
   Eye,
   ChevronRight,
-  User
+  User,
+  CloudDownload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import ImportSalesforceCaseModal from "@/components/import-salesforce-case-modal";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 
@@ -80,6 +82,12 @@ const caseStats = [
 // Note: mockCases removed, data fetched from Supabase
 const ITEMS_PER_PAGE = 10;
 
+const severityStyles: Record<string, string> = {
+  "Severity 1": "bg-red-100 text-red-700",
+  "Severity 2": "bg-amber-100 text-amber-700",
+  "Severity 3": "bg-yellow-100 text-yellow-700",
+};
+
 const statusStyles: Record<string, string> = {
   "New": "bg-blue-100 text-blue-700",
   "Open": "bg-amber-100 text-amber-700",
@@ -101,6 +109,7 @@ type CaseRow = {
   subject: string;
   status: string;
   normalizedStatus: string;
+  severity: string | null;
   date: string;
   rawDate: Date;
   client: {
@@ -153,6 +162,7 @@ export default function CaseDashboardPage() {
   const [isSubmittingCase, setIsSubmittingCase] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isImportSfCaseModalOpen, setIsImportSfCaseModalOpen] = useState(false);
 
 
   // Fetch contacts for admin and manager
@@ -200,6 +210,7 @@ export default function CaseDashboardPage() {
           case_sf_id,
           subject,
           status,
+          severity,
           created_at,
           contact_sf_id,
           contact:contact_sf_id (
@@ -266,6 +277,7 @@ export default function CaseDashboardPage() {
             subject: item.subject,
             status: item.status,
             normalizedStatus,
+            severity: item.severity || null,
             date: new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
             rawDate: new Date(item.created_at),
             client: {
@@ -464,11 +476,20 @@ export default function CaseDashboardPage() {
           </div>
           {/* Show New Case only for manager and submitter, NOT admin */}
           {(isManager || isSubmitter) && (
-            <Button 
+            <Button
               className="bg-amber-200 hover:bg-amber-300 text-amber-900 font-semibold shadow-none border-0"
               onClick={() => setIsNewCaseModalOpen(true)}
             >
               <Plus className="w-4 h-4 mr-2" /> New Case
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              className="bg-white border-slate-200 text-slate-700 font-semibold shadow-sm"
+              onClick={() => setIsImportSfCaseModalOpen(true)}
+            >
+              <CloudDownload className="w-4 h-4 mr-2" /> Sync from Salesforce
             </Button>
           )}
         </div>
@@ -569,6 +590,7 @@ export default function CaseDashboardPage() {
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Client</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Subject</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Date</th>
+                <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Severity</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs">Status</th>
                 <th className="font-semibold py-3 px-4 uppercase tracking-wider text-xs text-right">Action</th>
               </tr>
@@ -576,7 +598,7 @@ export default function CaseDashboardPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-10 px-4 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
                     Loading cases...
                   </td>
                 </tr>
@@ -604,6 +626,15 @@ export default function CaseDashboardPage() {
                     </td>
                     <td className="py-4 px-4 text-slate-600">{c.date}</td>
                     <td className="py-4 px-4">
+                      {c.severity ? (
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${severityStyles[c.severity] || "bg-slate-100 text-slate-600"}`}>
+                          {c.severity}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[c.normalizedStatus] || "bg-slate-100 text-slate-700"}`}>
                         {c.normalizedStatus}
                       </span>
@@ -620,7 +651,7 @@ export default function CaseDashboardPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-10 px-4 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="py-10 px-4 text-center text-sm text-slate-500">
                     No cases match your current filter.
                   </td>
                 </tr>
@@ -637,6 +668,16 @@ export default function CaseDashboardPage() {
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {/* Import Salesforce Case Modal */}
+      <ImportSalesforceCaseModal
+        isOpen={isImportSfCaseModalOpen}
+        onClose={() => setIsImportSfCaseModalOpen(false)}
+        onSuccess={() => {
+          setIsImportSfCaseModalOpen(false);
+          setRefreshTrigger((t) => t + 1);
+        }}
+      />
 
       {/* New Case Modal */}
       {isNewCaseModalOpen && (

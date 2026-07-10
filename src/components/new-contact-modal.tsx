@@ -275,6 +275,35 @@ export default function NewContactModal({ isOpen, onClose, onSuccess }: NewConta
                   disabled={isSubmitting}
                   className="bg-slate-50 border-slate-200"
                 />
+                {/* Password Requirements Checklist */}
+                <div className="bg-slate-50 rounded-lg p-3 space-y-1.5 mt-1">
+                  <p className="text-xs font-semibold text-slate-500 mb-1.5">Password must contain:</p>
+                  {[
+                    { label: "Minimal 8 karakter", test: password.length >= 8 },
+                    { label: "Minimal 1 huruf kecil (a-z)", test: /[a-z]/.test(password) },
+                    { label: "Minimal 1 huruf besar (A-Z)", test: /[A-Z]/.test(password) },
+                    { label: "Minimal 1 angka (0-9)", test: /[0-9]/.test(password) },
+                  ].map((req) => (
+                    <div key={req.label} className="flex items-center gap-2">
+                      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        req.test
+                          ? "bg-emerald-500 border-emerald-500"
+                          : "border-slate-300 bg-white"
+                      }`}>
+                        {req.test && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-xs transition-colors ${
+                        req.test ? "text-emerald-700 font-medium" : "text-slate-400"
+                      }`}>
+                        {req.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-2">

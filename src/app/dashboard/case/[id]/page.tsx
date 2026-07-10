@@ -22,8 +22,7 @@ import {
   Download,
   Send,
   Upload,
-  X,
-  Check
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -173,7 +172,16 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         const data = await res.json();
         console.log("[Case Detail] Successfully fetched Salesforce case details:", data);
         if (data.data && data.data.length > 0) {
-          setSfCaseDetail(data.data[0]);
+          const sfData = data.data[0];
+          setSfCaseDetail(sfData);
+
+          // Save severity to Supabase for case list display
+          if (sfData.severity && caseData?.caseNumber) {
+            await supabase
+              .from('case')
+              .update({ severity: sfData.severity })
+              .eq('caseNumber', caseData.caseNumber);
+          }
         }
       } else {
         console.error('[Case Detail] Failed to fetch Salesforce case details, status:', res.status);
@@ -273,12 +281,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   function buildBase64DataUrl(base64: string, mimeType: string) {
-    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    const cleanedBase64 = normalizeBase64(base64);
     return `data:${mimeType};base64,${cleanedBase64}`;
   }
 
   function decodeBase64ToText(base64: string) {
-    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    const cleanedBase64 = normalizeBase64(base64);
     const binary = atob(cleanedBase64);
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
     return new TextDecoder("utf-8").decode(bytes);
@@ -334,8 +342,21 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     return normalizeTableRows(rows);
   }
 
+  function normalizeBase64(b64: string): string {
+    // Salesforce may return URL-safe base64 (- instead of +, _ instead of /)
+    let normalized = b64.replace(/\s/g, "");
+    if (normalized.includes("-") || normalized.includes("_")) {
+      normalized = normalized.replace(/-/g, "+").replace(/_/g, "/");
+    }
+    // Restore standard padding
+    const pad = normalized.length % 4;
+    if (pad === 2) normalized += "==";
+    else if (pad === 3) normalized += "=";
+    return normalized;
+  }
+
   function parseExcelBase64(base64: string) {
-    const cleanedBase64 = (base64 || "").replace(/\s/g, "");
+    const cleanedBase64 = normalizeBase64(base64);
     const binary = atob(cleanedBase64);
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
     const workbook = XLSX.read(bytes, { type: "array" });
@@ -657,46 +678,6 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     fetchCaseDetail();
   }, [caseId, user, isManager, isSubmitter]);
 
-  function normalizeCaseStatus(value?: string) {
-    const status = (value || "").trim().toLowerCase();
-    const compact = status.replace(/[\s_-]+/g, "");
-
-    if (compact === "reopen") return "re-open";
-    if (compact === "inprogress") return "in progress";
-    if (compact === "waitingreply") return "waiting reply";
-    if (compact === "cancelled") return "canceled";
-
-    return status.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-  }
-
-  const stageOrder = [
-    { id: "new", label: "New" },
-    { id: "open", label: "Open" },
-    { id: "waiting reply", label: "Waiting Reply" },
-    { id: "escalated", label: "Escalated" },
-    { id: "in progress", label: "In Progress" },
-    { id: "solved", label: "Solved" },
-    { id: "closed", label: "Closed" },
-    { id: "merged", label: "Merged" },
-    { id: "canceled", label: "Canceled" },
-    { id: "re-open", label: "Re-Open" },
-  ];
-
-  const normalizedCaseStatus = normalizeCaseStatus(sfCaseDetail?.status || caseData?.status);
-  const currentStageIndex = stageOrder.findIndex((stage) => stage.id === normalizedCaseStatus);
-
-  const stages = stageOrder.map((stage, index) => {
-    if (index === currentStageIndex) {
-      return { ...stage, status: "current" as const };
-    }
-
-    if (currentStageIndex !== -1 && index < currentStageIndex) {
-      return { ...stage, status: "completed" as const };
-    }
-
-    return { ...stage, status: "upcoming" as const };
-  });
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -782,14 +763,25 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 <span className="text-slate-400 font-medium">Status</span>
                 <span className="text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded text-xs font-bold w-max">{sfCaseDetail?.status || caseData.status}</span>
               </div>
+              <div className="grid grid-cols-[140px_1fr] items-start gap-2">
+                <span className="text-slate-400 font-medium">Severity</span>
+                {sfCaseDetail?.severity ? (
+                  <span className={`px-2.5 py-0.5 rounded text-xs font-bold w-max ${
+                    sfCaseDetail.severity === "Severity 1" ? "bg-red-100 text-red-700" :
+                    sfCaseDetail.severity === "Severity 2" ? "bg-amber-100 text-amber-700" :
+                    sfCaseDetail.severity === "Severity 3" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-slate-100 text-slate-600"
+                  }`}>
+                    {sfCaseDetail.severity}
+                  </span>
+                ) : (
+                  <span className="text-slate-800 font-medium">N/A</span>
+                )}
+              </div>
               <div className="w-full h-px bg-slate-100 my-2"></div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Created Date</span>
                 <span className="text-slate-800 font-bold">{new Date(caseData.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} <span className="text-slate-400 font-medium">{new Date(caseData.created_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })}</span></span>
-              </div>
-              <div className="grid grid-cols-[140px_1fr] items-start gap-2">
-                <span className="text-slate-400 font-medium">Resolution</span>
-                <span className="text-slate-800 font-bold">{sfCaseDetail?.resolution || '-'}</span>
               </div>
             </div>
           </div>
@@ -868,38 +860,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
           {activeTab === "Activity" && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 w-full">
-                {stages.map((stage) => {
-                  let bgClass = "";
-                  let textClass = "";
-                  let icon = null;
-
-                  if (stage.status === "completed") {
-                    bgClass = "bg-[#e5f7e6]";
-                    textClass = "text-[#4caf50]";
-                    icon = <Check className="w-3.5 h-3.5 mr-1.5" strokeWidth={3} />;
-                  } else if (stage.status === "current") {
-                    bgClass = "bg-[#5cb85c]";
-                    textClass = "text-white";
-                  } else {
-                    bgClass = "bg-slate-50";
-                    textClass = "text-slate-500";
-                  }
-
-                  return (
-                    <div
-                      key={stage.id}
-                      className={`flex items-center justify-center py-2.5 px-2 text-xs font-bold rounded-sm transition-colors ${bgClass} ${textClass}`}
-                    >
-                      {icon}
-                      <span className="text-center leading-tight">{stage.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* History Title */}
-              <h2 className="text-xl font-bold text-slate-800 mt-2">History</h2>
+              <h2 className="text-xl font-bold text-slate-800">History</h2>
 
               {/* Activity Table */}
               {isLoadingActivity ? (

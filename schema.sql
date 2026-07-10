@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS public.case (
   "caseNumber" TEXT UNIQUE NOT NULL,
   subject TEXT NOT NULL,
   status TEXT DEFAULT 'New',
+  severity TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   deleted_at TIMESTAMP WITH TIME ZONE

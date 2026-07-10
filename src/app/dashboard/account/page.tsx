@@ -4,8 +4,8 @@ import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { Pagination } from "@/components/ui/pagination";
-import { 
-  Search, 
+import {
+  Search,
   Plus,
   Users,
   Building2,
@@ -17,11 +17,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  CloudDownload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NewAccountModal from "@/components/new-account-modal";
+import ImportSalesforceAccountModal from "@/components/import-salesforce-account-modal";
 
 // Mock data generation
 // mockAccounts removed, using Supabase fetch
@@ -36,6 +38,7 @@ export default function AccountDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
   const [isNewAccountModalOpen, setIsNewAccountModalOpen] = useState(false);
+  const [isImportSfModalOpen, setIsImportSfModalOpen] = useState(false);
 
 
   useEffect(() => {
@@ -72,7 +75,7 @@ export default function AccountDashboardPage() {
       setIsLoading(false);
     }
     fetchAccounts();
-  }, [isNewAccountModalOpen]);
+  }, [isNewAccountModalOpen, isImportSfModalOpen]);
 
   // Get unique cities for filter
   const uniqueCities = ["All", ...Array.from(new Set(accounts.map(a => a.billingCity)))];
@@ -118,12 +121,21 @@ export default function AccountDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button 
-              className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
-              onClick={() => setIsNewAccountModalOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" /> New Account
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                className="bg-white border-slate-200 text-slate-700 font-semibold shadow-sm"
+                onClick={() => setIsImportSfModalOpen(true)}
+              >
+                <CloudDownload className="w-4 h-4 mr-2" /> Sync from Salesforce
+              </Button>
+              <Button
+                className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
+                onClick={() => setIsNewAccountModalOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" /> New Account
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -277,6 +289,15 @@ export default function AccountDashboardPage() {
         onClose={() => setIsNewAccountModalOpen(false)}
         onSuccess={() => {
           setIsNewAccountModalOpen(false);
+        }}
+      />
+
+      {/* Import Salesforce Account Modal */}
+      <ImportSalesforceAccountModal
+        isOpen={isImportSfModalOpen}
+        onClose={() => setIsImportSfModalOpen(false)}
+        onSuccess={() => {
+          setIsImportSfModalOpen(false);
         }}
       />
 

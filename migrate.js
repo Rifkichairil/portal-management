@@ -21,6 +21,10 @@ async function run() {
   await client.query('ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS agent_force_client_secret TEXT;');
   console.log('Added agent_force_client_secret column');
   
+  // Add severity column to case table
+  await client.query('ALTER TABLE IF EXISTS public."case" ADD COLUMN IF NOT EXISTS severity TEXT;');
+  console.log('Added severity column to case table');
+
   console.log('Migration successful!');
   await client.end();
 }

@@ -40,10 +40,19 @@ export async function POST(request: NextRequest) {
   // Validate password strength
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.isValid) {
-    return NextResponse.json(
-      { error: "Password does not meet requirements", details: passwordValidation.errors },
-      { status: 400 }
-    );
+    const requirements = [
+      "Minimal 8 karakter",
+      "Minimal 1 huruf kecil (a-z)",
+      "Minimal 1 huruf besar (A-Z)",
+      "Minimal 1 angka (0-9)",
+    ];
+    return NextResponse.json({
+      error: "Password does not meet requirements",
+      code: "CONTACT-003",
+      message: "Password tidak memenuhi persyaratan berikut:",
+      details: passwordValidation.errors,
+      requirements,
+    }, { status: 400 });
   }
 
   if (!accountId) {
