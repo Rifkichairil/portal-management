@@ -290,7 +290,7 @@ export default function ImportSalesforceAccountModal({
     handleClose();
   };
 
-  const formatFieldLabel = (key: string): string => {
+  const formatFieldLabel = (key: keyof SalesforceAccountData): string => {
     const labels: Record<string, string> = {
       accountId: "Salesforce ID",
       name: "Name",
@@ -303,7 +303,7 @@ export default function ImportSalesforceAccountModal({
       billingCountry: "Billing Country",
       billingPostalCode: "Billing Postal Code",
     };
-    return labels[key] || key;
+    return labels[key as string] || (key as string);
   };
 
   const accountFields: (keyof SalesforceAccountData)[] = [
