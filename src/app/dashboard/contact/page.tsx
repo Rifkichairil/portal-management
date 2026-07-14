@@ -4,8 +4,8 @@ import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { Pagination } from "@/components/ui/pagination";
-import { 
-  Search, 
+import {
+  Search,
   Plus,
   Users,
   Building2,
@@ -14,11 +14,13 @@ import {
   Smartphone,
   Eye,
   X,
-  Filter
+  Filter,
+  CloudDownload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import NewContactModal from "@/components/new-contact-modal";
+import SfContactPasswordModal from "@/components/sf-contact-password-modal";
 
 // Mock data generation
 // mockContacts removed, using Supabase fetch
@@ -33,6 +35,7 @@ export default function ContactDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedContact, setSelectedContact] = useState<any | null>(null);
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
+  const [isSfContactPasswordModalOpen, setIsSfContactPasswordModalOpen] = useState(false);
 
 
   useEffect(() => {
@@ -134,8 +137,17 @@ export default function ContactDashboardPage() {
           <p className="text-sm text-slate-500 mt-1">Manage and view all registered contacts and their details.</p>
         </div>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              className="bg-white border-slate-200 text-slate-700 font-semibold shadow-sm"
+              onClick={() => setIsSfContactPasswordModalOpen(true)}
+            >
+              <CloudDownload className="w-4 h-4 mr-2" /> Sync from Salesforce
+            </Button>
+          )}
           {(isAdmin || isManager) && (
-            <Button 
+            <Button
               className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm border-0"
               onClick={() => setIsNewContactModalOpen(true)}
             >
@@ -289,6 +301,15 @@ export default function ContactDashboardPage() {
           onPageChange={setCurrentPage}
         />
       </div>
+
+      {/* Salesforce Contact Password Modal */}
+      <SfContactPasswordModal
+        isOpen={isSfContactPasswordModalOpen}
+        onClose={() => setIsSfContactPasswordModalOpen(false)}
+        onSuccess={() => {
+          setIsSfContactPasswordModalOpen(false);
+        }}
+      />
 
       {/* New Contact Modal */}
       <NewContactModal

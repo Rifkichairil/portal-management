@@ -175,12 +175,41 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           const sfData = data.data[0];
           setSfCaseDetail(sfData);
 
-          // Save severity to Supabase for case list display
-          if (sfData.severity && caseData?.caseNumber) {
-            await supabase
-              .from('case')
-              .update({ severity: sfData.severity })
-              .eq('caseNumber', caseData.caseNumber);
+          // Sync changed data from Salesforce to Supabase
+          if (caseData?.caseNumber) {
+            const updates: Record<string, any> = {};
+
+            // Only update if SF has a value and it differs from local
+            if (sfData.severity && sfData.severity !== caseData.severity) {
+              updates.severity = sfData.severity;
+            }
+            if (sfData.subject && sfData.subject !== caseData.subject) {
+              updates.subject = sfData.subject;
+            }
+            if (sfData.description !== undefined && sfData.description !== caseData.description) {
+              updates.description = sfData.description || null;
+            }
+            if (sfData.resolution !== undefined && sfData.resolution !== caseData.resolution) {
+              updates.resolution = sfData.resolution || null;
+            }
+            if (sfData.status && sfData.status !== caseData.status) {
+              updates.status = sfData.status;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              const { error: updateError } = await supabase
+                .from('case')
+                .update(updates)
+                .eq('caseNumber', caseData.caseNumber);
+
+              if (!updateError) {
+                console.log('[Case Detail] Synced to Supabase:', updates);
+                // Also update local state
+                setCaseData((prev: any) => ({ ...prev, ...updates }));
+              } else {
+                console.error('[Case Detail] Failed to sync to Supabase:', updateError);
+              }
+            }
           }
         }
       } else {
@@ -587,6 +616,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           caseNumber,
           subject,
           description,
+          resolution,
           status,
           created_at,
           case_sf_id,
@@ -610,6 +640,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             caseNumber,
             subject,
             description,
+            resolution,
             status,
             created_at,
           case_sf_id,
@@ -933,7 +964,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-800 mb-2">Resolution</h2>
-                <p className="text-slate-600 italic">Belum ada resolusi, case masih dalam penanganan.</p>
+                {caseData.resolution ? (
+                  <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{caseData.resolution}</p>
+                ) : (
+                  <p className="text-slate-600 italic">Belum ada resolusi, case masih dalam penanganan.</p>
+                )}
               </div>
             </div>
           )}

@@ -53,7 +53,7 @@ export default function ImportSalesforceCaseModal({
   const [endDate, setEndDate] = useState("");
   const [step, setStep] = useState<Step>("form");
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-  const [errorInfo, setErrorInfo] = useState<{ title: string; message: string; code?: string }>({ title: "", message: "" });
+  const [errorInfo, setErrorInfo] = useState<{ title: string; message: string; code?: string; detail?: string }>({ title: "", message: "" });
 
   // Fetch accounts from Supabase when modal opens
   useEffect(() => {
@@ -104,9 +104,10 @@ export default function ImportSalesforceCaseModal({
       } else {
         setStep("review");
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Terjadi kesalahan";
-      setErrorInfo({ title: "Gagal Fetch Data", message });
+    } catch (error: any) {
+      const message = error?.message || error?.error || "Terjadi kesalahan";
+      const detail = error?.detail || "";
+      setErrorInfo({ title: "Gagal Fetch Data", message, detail });
       setStep("error");
     }
   };
@@ -141,9 +142,10 @@ export default function ImportSalesforceCaseModal({
       }
 
       setStep("done");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Terjadi kesalahan";
-      setErrorInfo({ title: "Gagal Import", message });
+    } catch (error: any) {
+      const message = error?.message || error?.error || "Terjadi kesalahan";
+      const detail = error?.detail || "";
+      setErrorInfo({ title: "Gagal Import", message, detail });
       setStep("error");
     }
   };
@@ -379,6 +381,9 @@ export default function ImportSalesforceCaseModal({
                 </div>
                 <p className="text-sm font-bold text-red-700 text-center">{errorInfo.title}</p>
                 <p className="text-xs text-red-500 text-center mt-1 max-w-sm">{errorInfo.message}</p>
+                {errorInfo.detail && (
+                  <p className="text-xs text-slate-400 text-center mt-2 max-w-sm bg-slate-50 rounded-lg p-2 whitespace-pre-wrap">{errorInfo.detail}</p>
+                )}
                 <Button variant="outline" size="sm" onClick={() => setStep("form")} className="mt-4 bg-white">
                   Try Again
                 </Button>

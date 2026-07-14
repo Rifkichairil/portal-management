@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyToken } from "@/lib/auth";
+import { parsePgError } from "@/lib/supabase-error";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -110,10 +111,13 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("[Sync Salesforce Account] Supabase insert error:", insertError);
+      const pgError = parsePgError(insertError);
       return NextResponse.json({
-        error: insertError.message,
+        error: pgError.reason,
         code: "DB-005",
-        message: "Gagal menyimpan data ke database. " + (insertError.message.includes("duplicate") ? "Data mungkin sudah ada." : "Coba lagi atau hubungi administrator."),
+        message: pgError.reason,
+        detail: pgError.detail,
+        pgCode: pgError.code,
       }, { status: 500 });
     }
 
@@ -124,11 +128,12 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error("[Sync Salesforce Account] Error inserting account:", error);
+    const pgError = parsePgError(error);
     return NextResponse.json({
-      error: "Internal server error",
+      error: pgError.reason,
       code: "DB-006",
-      message: "Terjadi kesalahan internal server. Silakan coba lagi.",
-      details: error instanceof Error ? error.message : String(error),
+      message: pgError.reason,
+      detail: pgError.detail,
     }, { status: 500 });
   }
 }

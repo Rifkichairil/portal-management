@@ -25,6 +25,14 @@ async function run() {
   await client.query('ALTER TABLE IF EXISTS public."case" ADD COLUMN IF NOT EXISTS severity TEXT;');
   console.log('Added severity column to case table');
 
+  // Add description column to case table
+  await client.query('ALTER TABLE IF EXISTS public."case" ADD COLUMN IF NOT EXISTS description TEXT;');
+  console.log('Added description column to case table');
+
+  // Add resolution column to case table
+  await client.query('ALTER TABLE IF EXISTS public."case" ADD COLUMN IF NOT EXISTS resolution TEXT;');
+  console.log('Added resolution column to case table');
+
   console.log('Migration successful!');
   await client.end();
 }
