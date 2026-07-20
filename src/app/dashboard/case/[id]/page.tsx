@@ -4,6 +4,7 @@ import { useState, useEffect, use, type ChangeEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/lib/user-context";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import {
   Info,
   FileText,
@@ -22,7 +23,9 @@ import {
   Download,
   Send,
   Upload,
-  X
+  X,
+  XCircle,
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -51,14 +54,19 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [previewAttachment, setPreviewAttachment] = useState<{
     name: string;
     src: string;
-    mode: "image" | "pdf" | "csv" | "excel" | "unsupported";
+    mode: "image" | "pdf" | "csv" | "excel" | "json" | "unsupported";
     downloadUrl?: string;
     fileType?: string;
     versionData?: string;
     tableRows?: string[][];
+    jsonContent?: string;
   } | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Close case
+  const [isClosingCase, setIsClosingCase] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const { user, isAdmin, isManager, isSubmitter } = useUser();
   const router = useRouter();
@@ -260,11 +268,32 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
     const pickedFiles = Array.from(files);
-    console.log("[Attachments] Selected files:", pickedFiles.map((file) => file.name));
+    const validFiles: File[] = [];
+    const rejected: string[] = [];
 
-    setUploadResult(null);
-    setSelectedFiles((prev) => [...prev, ...pickedFiles]);
+    for (const file of pickedFiles) {
+      // Reject video files
+      if (file.type.startsWith("video/")) {
+        rejected.push(`${file.name} (video tidak diizinkan)`);
+        continue;
+      }
+      // Reject files over 20MB
+      if (file.size > MAX_SIZE_BYTES) {
+        rejected.push(`${file.name} (melebihi batas 20MB)`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (rejected.length > 0) {
+      setUploadResult({ successCount: 0, failedFiles: rejected });
+    } else {
+      setUploadResult(null);
+    }
+
+    setSelectedFiles((prev) => [...prev, ...validFiles]);
     e.target.value = "";
   }
 
@@ -284,10 +313,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       IMAGE_JPG: "JPG",
       IMAGE_JPEG: "JPEG",
       IMAGE_PNG: "PNG",
+      POWER_POINT_X: "PPTX",
+      POWERPOINT_X: "PPTX",
+      POWERPOINT: "PPT",
     };
 
     const normalizedDirectType = mappedTypes[directType] || directType;
-    const knownTypes = new Set(["PDF", "PNG", "JPG", "JPEG", "GIF", "WEBP", "CSV", "XLS", "XLSX"]);
+    const knownTypes = new Set([
+      "PDF", "PNG", "JPG", "JPEG", "GIF", "WEBP", "CSV", "JSON",
+      "XLS", "XLSX", "PPT", "PPTX", "DOC", "DOCX",
+      "TXT", "ZIP", "RAR", "7Z",
+    ]);
 
     if (knownTypes.has(normalizedDirectType)) return normalizedDirectType;
     if (extension) return extension;
@@ -303,8 +339,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     if (normalized === "GIF") return "image/gif";
     if (normalized === "WEBP") return "image/webp";
     if (normalized === "CSV") return "text/csv";
+    if (normalized === "JSON") return "application/json";
     if (normalized === "XLS") return "application/vnd.ms-excel";
     if (normalized === "XLSX") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    if (normalized === "PPT") return "application/vnd.ms-powerpoint";
+    if (normalized === "PPTX") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    if (normalized === "DOC") return "application/msword";
+    if (normalized === "DOCX") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (normalized === "ZIP") return "application/zip";
+    if (normalized === "RAR") return "application/vnd.rar";
+    if (normalized === "7Z") return "application/x-7z-compressed";
+    if (normalized === "TXT") return "text/plain";
 
     return "application/octet-stream";
   }
@@ -500,6 +545,55 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       }
     }
 
+    const isJson = normalizedType === "JSON";
+
+    if (isJson) {
+      if (!versionData) {
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: "unsupported",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+        });
+        setPreviewError("Data JSON tidak tersedia untuk preview. Silakan download file.");
+        setIsPreviewLoading(false);
+        return;
+      }
+
+      try {
+        const rawText = atob(normalizeBase64(versionData));
+        const parsed = JSON.parse(rawText);
+        const formatted = JSON.stringify(parsed, null, 2);
+
+        setPreviewError(null);
+        setIsPreviewLoading(false);
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: "json",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+          jsonContent: formatted,
+        });
+        return;
+      } catch {
+        setPreviewAttachment({
+          name: attachmentName,
+          src: "",
+          mode: "unsupported",
+          downloadUrl,
+          fileType: normalizedType,
+          versionData,
+        });
+        setPreviewError("Preview JSON gagal diproses. Silakan download file.");
+        setIsPreviewLoading(false);
+        return;
+      }
+    }
+
     if (!isImage && !isPdf) {
       setPreviewAttachment({
         name: attachmentName,
@@ -599,6 +693,38 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       });
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  async function handleCloseCase() {
+    if (!caseData || isClosingCase) return;
+    setIsClosingCase(true);
+    try {
+      const res = await fetch("/api/cases/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: caseData.id }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setShowCloseConfirm(false);
+        toast.success(`Case ${result.caseNumber || caseData.caseNumber} berhasil ditutup.`);
+        if (!result.sfSynced) {
+          console.warn("Case closed locally but Salesforce sync failed:", result.sfError);
+          toast.error("Sinkronisasi Salesforce gagal.");
+        }
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        const err = await res.json();
+        console.error("Error closing case:", err.error);
+        toast.error(err.error || "Gagal menutup case.");
+      }
+    } catch (err) {
+      console.error("Error closing case:", err);
+      toast.error("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsClosingCase(false);
     }
   }
 
@@ -755,13 +881,71 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Header Section */}
       <div className="mb-8">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <h1 className="text-2xl font-bold text-slate-900">[{caseData.caseNumber}] - {caseData.subject}</h1>
-            <Info className="w-4 h-4 text-slate-400" />
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <h1
+              className="text-2xl font-bold text-slate-900 truncate"
+              title={`[${caseData.caseNumber}] - ${caseData.subject}`}
+            >
+              [{caseData.caseNumber}] - {caseData.subject}
+            </h1>
+            <Info className="w-4 h-4 text-slate-400 flex-shrink-0" />
           </div>
+          {caseData.status !== "Closed" && (
+            <Button
+              className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold shadow-sm border-0 flex-shrink-0"
+              onClick={() => setShowCloseConfirm(true)}
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              Close Case
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Close Case Confirmation Modal */}
+      {showCloseConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">Close Case</h3>
+              <p className="text-sm text-slate-500">
+                Are you sure you want to close case <span className="font-semibold text-slate-700">{caseData.caseNumber}</span>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+              <Button
+                variant="outline"
+                onClick={() => setShowCloseConfirm(false)}
+                className="bg-white border-slate-200 text-slate-700"
+                disabled={isClosingCase}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold border-0"
+                onClick={handleCloseCase}
+                disabled={isClosingCase}
+              >
+                {isClosingCase ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                    Closing...
+                  </>
+                ) : (
+                  "Yes, Close Case"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Sidebar */}
@@ -792,7 +976,10 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Status</span>
-                <span className="text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded text-xs font-bold w-max">{sfCaseDetail?.status || caseData.status}</span>
+                <span className={`px-2.5 py-0.5 rounded text-xs font-bold w-max ${
+                  (sfCaseDetail?.status || caseData.status) === "Closed" ? "bg-emerald-100 text-emerald-700" :
+                  "text-blue-600 bg-blue-50"
+                }`}>{sfCaseDetail?.status || caseData.status}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Severity</span>
@@ -1206,13 +1393,21 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
               )}
 
+              {previewAttachment.mode === "json" && previewAttachment.jsonContent && (
+                <div className="w-full max-h-[65vh] overflow-auto rounded-lg border border-slate-200 bg-white">
+                  <pre className="p-4 text-xs text-slate-700 font-mono whitespace-pre overflow-x-auto">
+                    {previewAttachment.jsonContent}
+                  </pre>
+                </div>
+              )}
+
               {previewAttachment.mode === "unsupported" && (
                 <div className="text-slate-500 text-sm font-medium text-center">
                   Preview belum tersedia untuk tipe {previewAttachment.fileType || "file ini"}. Silakan download file.
                 </div>
               )}
 
-              {!previewAttachment.src && !["unsupported", "csv", "excel"].includes(previewAttachment.mode) && (
+              {!previewAttachment.src && !["unsupported", "csv", "excel", "json"].includes(previewAttachment.mode) && (
                 <div className="text-slate-500 text-sm font-medium">Preview URL tidak tersedia.</div>
               )}
 
@@ -1256,10 +1451,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
             <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
               {uploadResult && (
-                <div className={`rounded-lg px-4 py-3 text-sm border ${uploadResult.failedFiles.length === 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm border ${uploadResult.failedFiles.length === 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"}`}>
                   <p className="font-semibold">{uploadResult.successCount} file berhasil diupload.</p>
                   {uploadResult.failedFiles.length > 0 && (
-                    <p className="mt-1">{uploadResult.failedFiles.length} file gagal dan tetap ada di daftar untuk dicoba lagi.</p>
+                    <div className="mt-1">
+                      <p className="font-medium">File ditolak:</p>
+                      <ul className="list-disc list-inside text-xs mt-1 space-y-0.5">
+                        {uploadResult.failedFiles.map((f, i) => (
+                          <li key={i}>{f}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
               )}
@@ -1272,7 +1474,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">
                   <Upload className="w-8 h-8 text-slate-400 mb-3 group-hover:text-amber-500 transition-colors" />
                   <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                  <p className="text-xs text-slate-500 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                  <p className="text-xs text-slate-500 mt-1">Semua format file (kecuali video) — max. 20MB</p>
                   <input
                     type="file"
                     multiple

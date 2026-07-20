@@ -287,6 +287,27 @@ export default function CaseDashboardPage() {
             contactSfId: item.contact_sf_id || "N/A"
           };
         });
+
+        // Sort: active statuses first, resolved/closed last
+        const statusPriority: Record<string, number> = {
+          "New": 1,
+          "Open": 2,
+          "Waiting Reply": 3,
+          "Escalated": 4,
+          "In Progress": 5,
+          "Re-Open": 6,
+          "Solved": 7,
+          "Closed": 8,
+          "Merged": 9,
+          "Canceled": 10,
+        };
+
+        mappedCases.sort((a, b) => {
+          const pa = statusPriority[a.normalizedStatus] ?? 99;
+          const pb = statusPriority[b.normalizedStatus] ?? 99;
+          return pa - pb;
+        });
+
         setCases(mappedCases);
       }
       setIsLoading(false);
@@ -344,15 +365,34 @@ export default function CaseDashboardPage() {
     const files = e.target.files;
     if (!files) return;
 
+    const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
     const newImages: Array<{ fileName: string; base64Data: string }> = [];
+    const rejectedFiles: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+
+      // Reject video files
+      if (file.type.startsWith("video/")) {
+        rejectedFiles.push(`${file.name} (video tidak diizinkan)`);
+        continue;
+      }
+
+      // Reject files over 20MB
+      if (file.size > MAX_SIZE_BYTES) {
+        rejectedFiles.push(`${file.name} (melebihi batas 20MB)`);
+        continue;
+      }
+
       const base64 = await fileToBase64(file);
       newImages.push({
         fileName: file.name,
         base64Data: base64,
       });
+    }
+
+    if (rejectedFiles.length > 0) {
+      toast.error(`File ditolak:\n${rejectedFiles.join("\n")}`);
     }
 
     setNewCaseImages([...newCaseImages, ...newImages]);
@@ -430,15 +470,21 @@ export default function CaseDashboardPage() {
     });
   }, [dateFilteredCases, searchTerm, statusFilter, contactFilter]);
 
+  // Cases filtered by date + contact only (for stat cards)
+  const casesForStats = useMemo(() => {
+    if (contactFilter === "All") return dateFilteredCases;
+    return dateFilteredCases.filter((c) => c.contactSfId === contactFilter);
+  }, [dateFilteredCases, contactFilter]);
+
   const dynamicCaseStats = useMemo(
     () =>
       caseStats.map((stat) => ({
         ...stat,
-        count: dateFilteredCases.filter((caseItem) =>
+        count: casesForStats.filter((caseItem) =>
           caseItem.normalizedStatus === stat.title
         ).length,
       })),
-    [dateFilteredCases]
+    [casesForStats]
   );
 
   const totalPages = Math.ceil(filteredCases.length / ITEMS_PER_PAGE);
@@ -620,14 +666,19 @@ export default function CaseDashboardPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4">
-                      <div className="font-medium text-slate-700">{c.subject}</div>
+                    <td className="py-4 px-4 max-w-0 w-full">
+                      <div
+                        className="font-medium text-slate-700 truncate"
+                        title={c.subject}
+                      >
+                        {c.subject}
+                      </div>
                       <div className="text-xs text-slate-400 mt-0.5">{c.id}</div>
                     </td>
-                    <td className="py-4 px-4 text-slate-600">{c.date}</td>
+                    <td className="py-4 px-4 text-slate-600 whitespace-nowrap">{c.date}</td>
                     <td className="py-4 px-4">
                       {c.severity ? (
-                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${severityStyles[c.severity] || "bg-slate-100 text-slate-600"}`}>
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${severityStyles[c.severity] || "bg-slate-100 text-slate-600"}`}>
                           {c.severity}
                         </span>
                       ) : (
@@ -635,7 +686,7 @@ export default function CaseDashboardPage() {
                       )}
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusStyles[c.normalizedStatus] || "bg-slate-100 text-slate-700"}`}>
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${statusStyles[c.normalizedStatus] || "bg-slate-100 text-slate-700"}`}>
                         {c.normalizedStatus}
                       </span>
                     </td>
@@ -726,11 +777,10 @@ export default function CaseDashboardPage() {
                 <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors relative group">
                   <Upload className="w-8 h-8 text-slate-400 mb-3 group-hover:text-amber-500 transition-colors" />
                   <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                  <p className="text-xs text-slate-500 mt-1">SVG, PNG, JPG or GIF (max. 5MB)</p>
+                  <p className="text-xs text-slate-500 mt-1">Semua format file (kecuali video) — max. 20MB</p>
                   <input
                     type="file"
                     multiple
-                    accept="image/*"
                     onChange={handleFileSelect}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />

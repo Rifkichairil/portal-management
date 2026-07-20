@@ -11,9 +11,9 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting: 5 login attempts per 15 minutes per IP
+    // Rate limiting: 10 login attempts per 15 minutes per IP
     const ip = getClientIp(request);
-    const rateLimitResult = rateLimit(ip, 5, 15 * 60 * 1000);
+    const rateLimitResult = rateLimit(ip, 10, 15 * 60 * 1000);
     
     if (!rateLimitResult.success) {
       return NextResponse.json(
