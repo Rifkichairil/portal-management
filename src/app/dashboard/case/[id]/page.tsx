@@ -170,7 +170,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   // Fetch case details from Salesforce via API route
-  async function fetchSfCaseDetail(caseSfId: string) {
+  async function fetchSfCaseDetail(caseSfId: string, localCase: { caseNumber: string; severity?: string; subject?: string; description?: string; resolution?: string; status?: string }) {
     const url = `/api/salesforce/case/detail?id=${caseSfId}`;
     console.log("[Case Detail] Fetching Salesforce case details");
     console.log("[Case Detail] case_sf_id:", caseSfId);
@@ -184,23 +184,23 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           setSfCaseDetail(sfData);
 
           // Sync changed data from Salesforce to Supabase
-          if (caseData?.caseNumber) {
+          if (localCase?.caseNumber) {
             const updates: Record<string, any> = {};
 
             // Only update if SF has a value and it differs from local
-            if (sfData.severity && sfData.severity !== caseData.severity) {
+            if (sfData.severity && sfData.severity !== localCase.severity) {
               updates.severity = sfData.severity;
             }
-            if (sfData.subject && sfData.subject !== caseData.subject) {
+            if (sfData.subject && sfData.subject !== localCase.subject) {
               updates.subject = sfData.subject;
             }
-            if (sfData.description !== undefined && sfData.description !== caseData.description) {
+            if (sfData.description !== undefined && sfData.description !== localCase.description) {
               updates.description = sfData.description || null;
             }
-            if (sfData.resolution !== undefined && sfData.resolution !== caseData.resolution) {
+            if (sfData.resolution !== undefined && sfData.resolution !== localCase.resolution) {
               updates.resolution = sfData.resolution || null;
             }
-            if (sfData.status && sfData.status !== caseData.status) {
+            if (sfData.status && sfData.status !== localCase.status) {
               updates.status = sfData.status;
             }
 
@@ -208,7 +208,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               const { error: updateError } = await supabase
                 .from('case')
                 .update(updates)
-                .eq('caseNumber', caseData.caseNumber);
+                .eq('caseNumber', localCase.caseNumber);
 
               if (!updateError) {
                 console.log('[Case Detail] Synced to Supabase:', updates);
@@ -823,7 +823,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
         // Fetch Salesforce data if case_sf_id exists
         if (data.case_sf_id) {
-          fetchSfCaseDetail(data.case_sf_id);
+          fetchSfCaseDetail(data.case_sf_id, {
+            caseNumber: data.caseNumber,
+            severity: data.severity,
+            subject: data.subject,
+            description: data.description,
+            resolution: data.resolution,
+            status: data.status,
+          });
           fetchActivityData(data.case_sf_id);
           fetchCommentsData(data.case_sf_id);
           fetchAttachmentsData(data.case_sf_id);
