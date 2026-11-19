@@ -972,12 +972,16 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="p-5 space-y-4 text-sm">
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
-                <span className="text-slate-400 font-medium">Category</span>
-                <span className="text-slate-800 font-bold">{sfCaseDetail?.category || 'N/A'}</span>
+                <span className="text-slate-400 font-medium">Ticket Type</span>
+                <span className="text-slate-800 font-bold">{sfCaseDetail?.ticketType || 'N/A'}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
-                <span className="text-slate-400 font-medium">Sub Category</span>
-                <span className="text-slate-800 font-medium">{sfCaseDetail?.subCategory || 'N/A'}</span>
+                <span className="text-slate-400 font-medium">Category</span>
+                <span className="text-slate-800 font-medium">{sfCaseDetail?.category || 'N/A'}</span>
+              </div>
+              <div className="grid grid-cols-[140px_1fr] items-start gap-2">
+                <span className="text-slate-400 font-medium">Cause</span>
+                <span className="text-slate-800 font-medium">{sfCaseDetail?.cause || 'N/A'}</span>
               </div>
               <div className="grid grid-cols-[140px_1fr] items-start gap-2">
                 <span className="text-slate-400 font-medium">Origin</span>

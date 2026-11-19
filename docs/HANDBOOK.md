@@ -188,7 +188,7 @@ Tiga role dengan hierarki:
   - Auto-skip duplicate by case_sf_id
 
 ### Case Detail
-- Case details (category, origin, status, severity, created date)
+- Case details (ticket type, category, cause, origin, status, severity, created date)
 - Contact details
 - **Activity Tab** — History perubahan case dari Salesforce
 - **Comments Tab** — Lihat & tambah komentar (sync ke Salesforce)
@@ -387,7 +387,7 @@ User buka halaman detail case
   → GET case dari Supabase (by caseNumber atau case_sf_id)
   → Fetch data real-time dari Salesforce:
       → OAuth → GET /services/apexrest/portal/case?id=500...
-      → Response: { status_code: 200, data: [{ category, severity, status, ... }] }
+      → Response: { status_code: 200, data: [{ ticketType, category, cause, severity, status, ... }] }
   → Save severity ke Supabase (untuk keperluan list)
   → Tampilkan data Salesforce + komentar & attachment lokal
 ```
@@ -460,8 +460,9 @@ Download:
 | `description` | `description` | |
 | `status` | `status` | |
 | `severity` | `severity` | |
+| `ticketType` | - | Tidak disimpan lokal |
 | `category` | - | Tidak disimpan lokal |
-| `subCategory` | - | Tidak disimpan lokal |
+| `cause` | - | Tidak disimpan lokal |
 | `origin` | - | Tidak disimpan lokal |
 | `resolution` | - | Tidak disimpan lokal |
 
@@ -501,8 +502,9 @@ Semua endpoint Apex REST harus mengikuti format response standar:
       "severity": "Severity 3",
       "description": "Testing Case",
       "origin": "Web",
+      "ticketType": "Incident",
       "category": "Support",
-      "subCategory": "Data Migration",
+      "cause": "Data Migration",
       "submitterBy": "003VG00001VbW6lYAF",
       "resolution": null
     }
